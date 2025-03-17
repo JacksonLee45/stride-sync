@@ -1,0 +1,79 @@
+/* styles/calendar.module.css */
+
+.calendarWrapper :global(.ant-picker-calendar) {
+    background-color: hsl(var(--background)) !important;
+  }
+  
+  .calendarWrapper :global(.ant-picker-calendar-header) {
+    background-color: hsl(var(--background)) !important;
+    color: hsl(var(--foreground)) !important;
+  }
+  
+  .calendarWrapper :global(.ant-picker-panel) {
+    background-color: hsl(var(--background)) !important;
+    color: hsl(var(--foreground)) !important;
+  }
+  
+  .calendarWrapper :global(.ant-select-dropdown) {
+    background-color: hsl(var(--background)) !important;
+    color: hsl(var(--foreground)) !important;
+    border-color: hsl(var(--border)) !important;
+  }
+  
+  .calendarWrapper :global(.ant-select-item) {
+    color: hsl(var(--foreground)) !important;
+  }
+  
+  .calendarWrapper :global(.ant-select-item-option-selected) {
+    background-color: hsl(var(--primary) / 20%) !important;
+  }
+  
+  .calendarWrapper :global(.ant-picker-calendar-date) {
+    border-color: hsl(var(--border)) !important;
+  }
+  
+  .calendarWrapper :global(.ant-picker-cell-in-view) {
+    color: hsl(var(--foreground)) !important;
+  }
+  
+  .calendarWrapper :global(.ant-picker-cell-disabled .ant-picker-calendar-date) {
+    background-color: hsl(var(--muted)) !important;
+  }
+  
+  .calendarWrapper :global(.ant-picker-calendar-date-today) {
+    border-color: hsl(var(--primary)) !important;
+  }
+  
+  .calendarWrapper :global(.ant-picker-calendar-date-today .ant-picker-calendar-date-value) {
+    color: hsl(var(--primary)) !important;
+  }
+  
+  .calendarWrapper :global(.ant-radio-button-wrapper) {
+    background-color: hsl(var(--background)) !important;
+    color: hsl(var(--foreground)) !important;
+    border-color: hsl(var(--border)) !important;
+  }
+  
+  .calendarWrapper :global(.ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled)) {
+    background-color: hsl(var(--primary)) !important;
+    color: hsl(var(--primary-foreground)) !important;
+    border-color: hsl(var(--primary)) !important;
+  }
+  
+  .calendarWrapper :global(.ant-select-selector) {
+    background-color: hsl(var(--background)) !important;
+    color: hsl(var(--foreground)) !important;
+    border-color: hsl(var(--border)) !important;
+  }
+  
+  /* For text that specifies the current date */
+  .calendarWrapper :global(.ant-picker-calendar-header .ant-picker-calendar-date-content) {
+    color: hsl(var(--foreground)) !important;
+  }
+  
+  /* Override all the other text in the header */
+  .calendarWrapper :global(.ant-picker-calendar-header button),
+  .calendarWrapper :global(.ant-picker-calendar-header span),
+  .calendarWrapper :global(.ant-picker-calendar-header div) {
+    color: hsl(var(--foreground)) !important;
+  }
