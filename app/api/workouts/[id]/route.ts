@@ -4,7 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 // GET a single workout with details
 export async function GET(
   request: Request,
-  context: any
+  context: { params: { id: string } }
 ) {
   const id = context.params.id;
   
@@ -62,7 +62,7 @@ export async function GET(
 // PUT to update a workout
 export async function PUT(
   request: Request,
-  context: any
+  context: { params: { id: string } }
 ) {
   const id = context.params.id;
   
@@ -116,7 +116,23 @@ export async function PUT(
       return NextResponse.json({ error: detailsError.message }, { status: 500 });
     }
     
-    return NextResponse.json({ ...workoutData, ...workoutDetails });
+    // Get the updated workout with details to return
+    const { data: updatedWorkout, error: getError } = await supabase
+      .from('workouts')
+      .select('*')
+      .eq('id', id)
+      .single();
+      
+    const { data: updatedDetails, error: getDetailsError } = await supabase
+      .from(tableName)
+      .select('*')
+      .eq('id', id)
+      .single();
+    
+    return NextResponse.json({ 
+      ...updatedWorkout, 
+      ...(updatedDetails || {}) 
+    });
   } catch (err: any) {
     console.error('Error in PUT /api/workouts/[id]:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -126,7 +142,7 @@ export async function PUT(
 // DELETE a workout
 export async function DELETE(
   request: Request,
-  context: any
+  context: { params: { id: string } }
 ) {
   const id = context.params.id;
   

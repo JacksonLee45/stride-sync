@@ -8,11 +8,13 @@ import { ConfigProvider, theme } from 'antd';
 import { useTheme } from 'next-themes';
 import WorkoutFormDialog from "./workout-form-dialog";
 import WorkoutCompletionDialog from "./workout-completion-dialog";
+import WorkoutDetailDialog from "./workout-detail-dialog";
 import { 
   getWorkoutsWithDetails, 
   createWorkout, 
   completeRunWorkout, 
   completeWeightliftingWorkout,
+  updateWorkout,
   Workout as ApiWorkout,
   RunWorkout as ApiRunWorkout,
   WeightliftingWorkout as ApiWeightliftingWorkout,
@@ -84,11 +86,13 @@ function CalendarSkeleton() {
 const Dashboard: React.FC = () => {
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const [isCompletionDialogOpen, setIsCompletionDialogOpen] = useState(false);
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [selectedWorkout, setSelectedWorkout] = useState<Workout | null>(null);
   const [isClient, setIsClient] = useState(false);
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]); // Default to today
   
   // Fetch workouts from the API
   const fetchWorkouts = async () => {
@@ -199,6 +203,7 @@ const Dashboard: React.FC = () => {
       // Reset the selected workout
       setSelectedWorkout(null);
       setIsCompletionDialogOpen(false);
+      setIsDetailDialogOpen(false);
     } catch (err: any) {
       console.error('Error completing workout:', err);
       // Show detailed error to user
@@ -206,10 +211,54 @@ const Dashboard: React.FC = () => {
     }
   };
   
+  // Handle updating a workout
+  const handleUpdateWorkout = async (id: string, workoutData: any) => {
+    try {
+      console.log("Updating workout:", id, workoutData);
+      
+      // Get the updated workout data from the API
+      const updatedWorkout = await updateWorkout(id, workoutData.workout, workoutData.workoutDetails);
+      
+      console.log("Workout updated successfully:", updatedWorkout);
+      
+      // Update the selected workout with the new data
+      if (selectedWorkout && selectedWorkout.id === id) {
+        setSelectedWorkout({
+          ...selectedWorkout,
+          ...updatedWorkout
+        });
+      }
+      
+      // Refresh the workout list
+      fetchWorkouts();
+      
+      // Return the updated workout data to the caller
+      return updatedWorkout;
+    } catch (err: any) {
+      console.error('Error updating workout:', err);
+      // Show detailed error to user
+      alert(`Failed to update workout: ${err?.message || 'Unknown error'}`);
+      throw err; // Re-throw so the dialog component can handle it
+    }
+  };
+  
   // Handle opening the completion dialog
   const openCompletionDialog = (workout: Workout) => {
     setSelectedWorkout(workout);
     setIsCompletionDialogOpen(true);
+  };
+  
+  // Handle opening the detail dialog
+  const openDetailDialog = (workout: Workout) => {
+    setSelectedWorkout(workout);
+    setIsDetailDialogOpen(true);
+  };
+
+  // Handle calendar cell click
+  const handleCalendarCellClick = (date: any) => {
+    const formattedDate = date.format('YYYY-MM-DD');
+    setSelectedDate(formattedDate);
+    setIsFormDialogOpen(true);
   };
   
   // Function to get status badge style
@@ -235,47 +284,66 @@ const Dashboard: React.FC = () => {
     const dateString = value.format('YYYY-MM-DD');
     const dateWorkouts = workouts.filter(workout => workout.date === dateString);
     
-    if (dateWorkouts.length === 0) return null;
-    
-    console.log(`Rendering workouts for ${dateString}:`, dateWorkouts);
-    
     return (
-      <ul className="list-none m-0 p-0">
-        {dateWorkouts.map(workout => (
-          <li key={workout.id} className="text-xs mb-1 flex items-center justify-between group">
-            <span 
-              className={`
-                px-2 py-1 rounded-sm flex-grow mr-1
-                ${workout.type === 'run' ? 'bg-blue-100 dark:bg-blue-900' : 'bg-purple-100 dark:bg-purple-900'}
-                ${workout.status === 'completed' ? 'border-l-2 border-green-500' : 
-                  workout.status === 'missed' ? 'border-l-2 border-red-500' : ''}
-              `}
-            >
-              {workout.title}
-            </span>
-            
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100"
+      <div 
+        className="h-full cursor-pointer" 
+        onClick={(e) => {
+          // Prevent the click from bubbling up to the calendar's default behavior
+          e.stopPropagation();
+          handleCalendarCellClick(value);
+        }}
+      >
+        {dateWorkouts.length > 0 ? (
+          <ul className="list-none m-0 p-0">
+            {dateWorkouts.map(workout => (
+              <li key={workout.id} className="text-xs mb-1 flex items-center justify-between group">
+                <span 
+                  className={`
+                    px-2 py-1 rounded-sm flex-grow mr-1 cursor-pointer hover:opacity-80
+                    ${workout.type === 'run' ? 'bg-blue-100 dark:bg-blue-900' : 'bg-purple-100 dark:bg-purple-900'}
+                    ${workout.status === 'completed' ? 'border-l-2 border-green-500' : 
+                      workout.status === 'missed' ? 'border-l-2 border-red-500' : ''}
+                  `}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openDetailDialog(workout);
+                  }}
                 >
-                  <MoreHorizontal size={14} />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {workout.status === 'planned' && (
-                  <DropdownMenuItem onClick={() => openCompletionDialog(workout)}>
-                    Mark as complete
-                  </DropdownMenuItem>
-                )}
-                {/* Could add other actions like Edit, Delete, etc. */}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </li>
-        ))}
-      </ul>
+                  {workout.title}
+                </span>
+                
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100"
+                      onClick={(e) => e.stopPropagation()} // Prevent click from triggering cell click
+                    >
+                      <MoreHorizontal size={14} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {workout.status === 'planned' && (
+                      <DropdownMenuItem onClick={(e) => {
+                        e.stopPropagation(); // Prevent click from triggering cell click
+                        openCompletionDialog(workout);
+                      }}>
+                        Mark as complete
+                      </DropdownMenuItem>
+                    )}
+                    {/* Could add other actions like Edit, Delete, etc. */}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="h-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+            <Plus size={16} className="text-primary" />
+          </div>
+        )}
+      </div>
     );
   };
 
@@ -305,7 +373,10 @@ const Dashboard: React.FC = () => {
       <header className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Your Workout Calendar</h1>
         <Button 
-          onClick={() => setIsFormDialogOpen(true)}
+          onClick={() => {
+            setSelectedDate(new Date().toISOString().split('T')[0]); // Reset to today
+            setIsFormDialogOpen(true);
+          }}
           className="flex items-center gap-2"
         >
           <Plus size={16} />
@@ -341,6 +412,7 @@ const Dashboard: React.FC = () => {
         isOpen={isFormDialogOpen}
         onClose={() => setIsFormDialogOpen(false)}
         onSave={handleSaveWorkout}
+        initialDate={selectedDate}
       />
 
       {/* Completion dialog for marking workouts as complete */}
@@ -353,6 +425,20 @@ const Dashboard: React.FC = () => {
           }}
           workout={selectedWorkout}
           onComplete={handleCompleteWorkout}
+        />
+      )}
+
+      {/* Detail dialog for viewing and editing workouts */}
+      {selectedWorkout && (
+        <WorkoutDetailDialog
+          isOpen={isDetailDialogOpen}
+          onClose={() => {
+            setIsDetailDialogOpen(false);
+            setSelectedWorkout(null);
+          }}
+          workout={selectedWorkout}
+          onComplete={handleCompleteWorkout}
+          onUpdate={handleUpdateWorkout}
         />
       )}
     </div>

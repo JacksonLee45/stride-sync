@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,9 +17,10 @@ interface WorkoutFormDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (workout: any) => void;
+  initialDate?: string; // Optional prop to set initial date
 }
 
-export default function WorkoutFormDialog({ isOpen, onClose, onSave }: WorkoutFormDialogProps) {
+export default function WorkoutFormDialog({ isOpen, onClose, onSave, initialDate }: WorkoutFormDialogProps) {
   const [workoutType, setWorkoutType] = useState<'run' | 'weightlifting'>('run');
   const [formData, setFormData] = useState({
     title: '',
@@ -34,6 +35,16 @@ export default function WorkoutFormDialog({ isOpen, onClose, onSave }: WorkoutFo
     focusArea: '',
     notes: '',
   });
+
+  // Update form when dialog opens or initialDate changes
+  useEffect(() => {
+    if (isOpen) {
+      setFormData(prev => ({
+        ...prev,
+        date: initialDate || new Date().toISOString().split('T')[0]
+      }));
+    }
+  }, [isOpen, initialDate]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;

@@ -3,7 +3,7 @@ import { createClient } from "@/utils/supabase/server";
 
 export async function POST(
   request: Request,
-  context: any
+  context: { params: { id: string } }
 ) {
   const id = context.params.id;
   try {
@@ -74,7 +74,35 @@ export async function POST(
       }
     }
     
-    return NextResponse.json({ success: true });
+    // Get the updated workout with all details to return
+    const { data: updatedWorkout, error: getWorkoutError } = await supabase
+      .from('workouts')
+      .select('*')
+      .eq('id', id)
+      .single();
+      
+    if (getWorkoutError) {
+      console.error('Error fetching updated workout:', getWorkoutError);
+      return NextResponse.json({ success: true }); // Return success even though we couldn't fetch the updated data
+    }
+    
+    // Get the type-specific details
+    const tableName = workout.type === 'run' ? 'run_workouts' : 'weightlifting_workouts';
+    const { data: updatedDetails, error: getDetailsError } = await supabase
+      .from(tableName)
+      .select('*')
+      .eq('id', id)
+      .single();
+    
+    if (getDetailsError) {
+      console.error(`Error fetching updated ${workout.type} details:`, getDetailsError);
+      return NextResponse.json({ ...updatedWorkout }); // Return just the workout without details
+    }
+    
+    return NextResponse.json({ 
+      ...updatedWorkout, 
+      ...(updatedDetails || {}) 
+    });
   } catch (err: any) {
     console.error('Error in POST /api/workouts/[id]/complete:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
