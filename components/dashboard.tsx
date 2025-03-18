@@ -2,12 +2,50 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Check, X, MoreHorizontal } from "lucide-react";
 import dynamic from 'next/dynamic';
 import { ConfigProvider, theme } from 'antd';
 import { useTheme } from 'next-themes';
 import WorkoutFormDialog from "./workout-form-dialog";
-import styles from '@/styles/calendar.module.css';
+import WorkoutCompletionDialog from "./workout-completion-dialog";
+import { 
+  getWorkoutsWithDetails, 
+  createWorkout, 
+  completeRunWorkout, 
+  completeWeightliftingWorkout,
+  Workout as ApiWorkout,
+  RunWorkout as ApiRunWorkout,
+  WeightliftingWorkout as ApiWeightliftingWorkout,
+  CompleteRunWorkoutData,
+  CompleteWeightliftingWorkoutData
+} from '@/utils/supabase/api';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+// Combined workout type for UI
+export interface Workout extends ApiWorkout {
+  // Run specific fields
+  run_type?: 'Long' | 'Fast' | 'Tempo' | 'Shakeout' | 'Short';
+  planned_distance?: number;
+  planned_pace?: string;
+  completed_distance?: number;
+  completed_pace?: string;
+  // Weightlifting specific fields
+  focus_area?: string;
+  planned_duration?: string;
+  completed_duration?: string;
+  // Common fields
+  completed_heart_rate?: number;
+}
+
+// Create a simple CSS module to be used instead of importing from styles
+const calendarCss = {
+  calendarWrapper: 'calendar-wrapper'
+};
 
 // Dynamically import the Calendar component from antd with no SSR
 // This prevents hydration errors since antd's Calendar relies on browser APIs
@@ -42,25 +80,210 @@ function CalendarSkeleton() {
   );
 }
 
-export default function Dashboard() {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+// Explicitly typing Dashboard as a React FC (Function Component)
+const Dashboard: React.FC = () => {
+  const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
+  const [isCompletionDialogOpen, setIsCompletionDialogOpen] = useState(false);
+  const [selectedWorkout, setSelectedWorkout] = useState<Workout | null>(null);
   const [isClient, setIsClient] = useState(false);
+  const [workouts, setWorkouts] = useState<Workout[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
-  // Set isClient to true after component mounts
+  // Fetch workouts from the API
+  const fetchWorkouts = async () => {
+    try {
+      setIsLoading(true);
+      console.log("Fetching workouts...");
+      
+      // Fetch real data from Supabase
+      const data = await getWorkoutsWithDetails();
+      setWorkouts(data);
+      
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching workouts:', err);
+      setError('Failed to load workouts. Please try again later.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Set isClient to true after component mounts and fetch workouts
   useEffect(() => {
+    console.log("Dashboard component mounted");
     setIsClient(true);
+    fetchWorkouts();
   }, []);
+  
+  // Convert the form data to API format and save the workout
+  const handleSaveWorkout = async (formWorkout: any) => {
+    try {
+      console.log("Saving workout:", formWorkout);
+      
+      // Convert the workout form data to API format
+      const workoutData: ApiWorkout = {
+        title: formWorkout.title,
+        date: formWorkout.date,
+        type: formWorkout.type,
+        notes: formWorkout.notes,
+        status: 'planned'
+      };
+      
+      let workoutDetails: ApiRunWorkout | ApiWeightliftingWorkout;
+      
+      if (formWorkout.type === 'run') {
+        workoutDetails = {
+          run_type: formWorkout.runType || 'Long',
+          planned_distance: formWorkout.distance ? parseFloat(formWorkout.distance) : undefined,
+          planned_pace: formWorkout.pace || undefined
+        };
+      } else {
+        workoutDetails = {
+          focus_area: formWorkout.focusArea || undefined,
+          planned_duration: formWorkout.duration || undefined
+        };
+      }
+      
+      console.log("About to create workout with data:", workoutData);
+      console.log("And details:", workoutDetails);
+      
+      // Save the workout using the API
+      const savedWorkout = await createWorkout(workoutData, workoutDetails);
+      console.log("Workout saved successfully:", savedWorkout);
+      
+      // Refresh the workout list
+      fetchWorkouts();
+      
+      // Close the dialog
+      setIsFormDialogOpen(false);
+    } catch (err: any) {
+      console.error('Error saving workout:', err);
+      // Show detailed error to user
+      alert(`Failed to save workout: ${err?.message || 'Unknown error'}`);
+    }
+  };
+  
+  // Handle completing a workout
+  const handleCompleteWorkout = async (completionData: CompleteRunWorkoutData | CompleteWeightliftingWorkoutData) => {
+    if (!selectedWorkout || !selectedWorkout.id) return;
+    
+    try {
+      console.log("Completing workout:", selectedWorkout.id, completionData);
+      
+      if (selectedWorkout.type === 'run') {
+        console.log("Calling completeRunWorkout with data:", {
+          id: selectedWorkout.id,
+          data: completionData
+        });
+        await completeRunWorkout(
+          selectedWorkout.id, 
+          completionData as CompleteRunWorkoutData
+        );
+      } else {
+        console.log("Calling completeWeightliftingWorkout with data:", {
+          id: selectedWorkout.id,
+          data: completionData
+        });
+        await completeWeightliftingWorkout(
+          selectedWorkout.id, 
+          completionData as CompleteWeightliftingWorkoutData
+        );
+      }
+      
+      console.log("Workout completed successfully");
+      
+      // Refresh the workout list
+      fetchWorkouts();
+      
+      // Reset the selected workout
+      setSelectedWorkout(null);
+      setIsCompletionDialogOpen(false);
+    } catch (err: any) {
+      console.error('Error completing workout:', err);
+      // Show detailed error to user
+      alert(`Failed to complete workout: ${err?.message || 'Unknown error'}`);
+    }
+  };
+  
+  // Handle opening the completion dialog
+  const openCompletionDialog = (workout: Workout) => {
+    setSelectedWorkout(workout);
+    setIsCompletionDialogOpen(true);
+  };
+  
+  // Function to get status badge style
+  const getStatusBadge = (status: string | undefined) => {
+    switch(status) {
+      case 'completed':
+        return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100">
+          <Check className="mr-1" size={12} />Completed
+        </span>;
+      case 'missed':
+        return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100">
+          <X className="mr-1" size={12} />Missed
+        </span>;
+      default: // planned
+        return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100">
+          Planned
+        </span>;
+    }
+  };
   
   // Function to handle calendar date cell rendering
   const dateCellRender = (value: any) => {
-    // Here you would typically check if there are workouts for this date
-    // and render them accordingly
-    return null;
+    const dateString = value.format('YYYY-MM-DD');
+    const dateWorkouts = workouts.filter(workout => workout.date === dateString);
+    
+    if (dateWorkouts.length === 0) return null;
+    
+    console.log(`Rendering workouts for ${dateString}:`, dateWorkouts);
+    
+    return (
+      <ul className="list-none m-0 p-0">
+        {dateWorkouts.map(workout => (
+          <li key={workout.id} className="text-xs mb-1 flex items-center justify-between group">
+            <span 
+              className={`
+                px-2 py-1 rounded-sm flex-grow mr-1
+                ${workout.type === 'run' ? 'bg-blue-100 dark:bg-blue-900' : 'bg-purple-100 dark:bg-purple-900'}
+                ${workout.status === 'completed' ? 'border-l-2 border-green-500' : 
+                  workout.status === 'missed' ? 'border-l-2 border-red-500' : ''}
+              `}
+            >
+              {workout.title}
+            </span>
+            
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100"
+                >
+                  <MoreHorizontal size={14} />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {workout.status === 'planned' && (
+                  <DropdownMenuItem onClick={() => openCompletionDialog(workout)}>
+                    Mark as complete
+                  </DropdownMenuItem>
+                )}
+                {/* Could add other actions like Edit, Delete, etc. */}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </li>
+        ))}
+      </ul>
+    );
   };
 
   // Get the current theme
   const { resolvedTheme } = useTheme();
   const isDarkMode = resolvedTheme === 'dark';
+  
+  console.log("Rendering Dashboard, isClient:", isClient);
   
   // Custom theme configuration for Ant Design
   const customTheme = {
@@ -82,7 +305,7 @@ export default function Dashboard() {
       <header className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Your Workout Calendar</h1>
         <Button 
-          onClick={() => setIsDialogOpen(true)}
+          onClick={() => setIsFormDialogOpen(true)}
           className="flex items-center gap-2"
         >
           <Plus size={16} />
@@ -90,23 +313,50 @@ export default function Dashboard() {
         </Button>
       </header>
 
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" role="alert">
+          <p>{error}</p>
+        </div>
+      )}
+
       <div className="bg-card rounded-lg border shadow-sm p-4">
-        {isClient && (
+        {isLoading ? (
+          <CalendarSkeleton />
+        ) : isClient ? (
           <ConfigProvider theme={customTheme}>
-            <div className={styles.calendarWrapper}>
+            <div className={calendarCss.calendarWrapper}>
               <Calendar 
                 fullscreen={true} 
                 cellRender={dateCellRender}
               />
             </div>
           </ConfigProvider>
+        ) : (
+          <div>Loading calendar...</div>
         )}
       </div>
 
+      {/* Form dialog for creating new workouts */}
       <WorkoutFormDialog 
-        isOpen={isDialogOpen}
-        onClose={() => setIsDialogOpen(false)}
+        isOpen={isFormDialogOpen}
+        onClose={() => setIsFormDialogOpen(false)}
+        onSave={handleSaveWorkout}
       />
+
+      {/* Completion dialog for marking workouts as complete */}
+      {selectedWorkout && (
+        <WorkoutCompletionDialog 
+          isOpen={isCompletionDialogOpen}
+          onClose={() => {
+            setIsCompletionDialogOpen(false);
+            setSelectedWorkout(null);
+          }}
+          workout={selectedWorkout}
+          onComplete={handleCompleteWorkout}
+        />
+      )}
     </div>
   );
-}
+};
+
+export default Dashboard;

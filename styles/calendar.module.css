@@ -77,3 +77,36 @@
   .calendarWrapper :global(.ant-picker-calendar-header div) {
     color: hsl(var(--foreground)) !important;
   }
+
+  .calendarWrapper :global(.ant-picker-calendar) {
+    background-color: transparent !important;
+  }
+  
+  .calendarWrapper :global(.ant-picker-calendar-header) {
+    background-color: transparent !important;
+  }
+  
+  .calendarWrapper :global(.ant-picker-cell) {
+    cursor: pointer;
+  }
+  
+  .calendarWrapper :global(.ant-picker-calendar-date-content) {
+    height: auto !important;
+    min-height: 80px;
+  }
+  
+  /* Make sure our workout items are visible in the calendar */
+  .calendarWrapper :global(.ant-picker-calendar-date-content ul) {
+    margin: 0;
+    padding: 0;
+  }
+  
+  /* Ensure dropdown menus in calendar cells appear on top */
+  .calendarWrapper :global(.ant-picker-cell) {
+    position: relative;
+    z-index: auto;
+  }
+  
+  .calendarWrapper :global(.ant-picker-cell:hover) {
+    z-index: 10;
+  }
