@@ -1,9 +1,8 @@
-// app/api/workouts/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 
 // GET handler to fetch workouts with details
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
     
@@ -92,7 +91,7 @@ export async function GET() {
 }
 
 // POST handler to create a new workout
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
     const { workout, workoutDetails } = await request.json();

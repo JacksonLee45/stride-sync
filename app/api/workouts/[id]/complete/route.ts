@@ -1,9 +1,9 @@
-// app/api/workouts/[id]/complete/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 
+// Next.js App Router requires this specific function signature for dynamic routes
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
