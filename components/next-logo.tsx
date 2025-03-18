@@ -1,3 +1,5 @@
+// Use in About Page
+
 export default function NextLogo() {
   return (
     <svg

@@ -1,3 +1,5 @@
+// Use in About page
+
 export default function SupabaseLogo() {
   return (
     <svg
