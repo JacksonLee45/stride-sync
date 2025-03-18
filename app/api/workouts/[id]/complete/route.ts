@@ -1,17 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 
-// Next.js App Router requires this specific function signature for dynamic routes
 export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  context: any
 ) {
+  const id = context.params.id;
   try {
-    const id = params.id;
-    if (!id) {
-      return NextResponse.json({ error: 'Workout ID is required' }, { status: 400 });
-    }
-    
     const supabase = await createClient();
     const { data } = await request.json();
     

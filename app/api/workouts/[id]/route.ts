@@ -1,17 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 
 // GET a single workout with details
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  context: any
 ) {
+  const id = context.params.id;
+  
   try {
-    const id = params.id;
-    if (!id) {
-      return NextResponse.json({ error: 'Workout ID is required' }, { status: 400 });
-    }
-    
     const supabase = await createClient();
     
     // Get the current user for security check
@@ -64,15 +61,12 @@ export async function GET(
 
 // PUT to update a workout
 export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  context: any
 ) {
+  const id = context.params.id;
+  
   try {
-    const id = params.id;
-    if (!id) {
-      return NextResponse.json({ error: 'Workout ID is required' }, { status: 400 });
-    }
-    
     const supabase = await createClient();
     const { workout, workoutDetails } = await request.json();
     
@@ -131,15 +125,12 @@ export async function PUT(
 
 // DELETE a workout
 export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  context: any
 ) {
+  const id = context.params.id;
+  
   try {
-    const id = params.id;
-    if (!id) {
-      return NextResponse.json({ error: 'Workout ID is required' }, { status: 400 });
-    }
-    
     const supabase = await createClient();
     
     // Get the current user for security check
