@@ -3,7 +3,7 @@ import { createClient } from "@/utils/supabase/server";
 
 export async function POST(
   request: Request,
-  context: { params: { id: string } }
+  context: any
 ) {
   const id = context.params.id;
   try {

@@ -4,7 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 // GET a single workout with details
 export async function GET(
   request: Request,
-  context: { params: { id: string } }
+  context: any
 ) {
   const id = context.params.id;
   
@@ -62,7 +62,7 @@ export async function GET(
 // PUT to update a workout
 export async function PUT(
   request: Request,
-  context: { params: { id: string } }
+  context: any
 ) {
   const id = context.params.id;
   
@@ -142,7 +142,7 @@ export async function PUT(
 // DELETE a workout
 export async function DELETE(
   request: Request,
-  context: { params: { id: string } }
+  context: any
 ) {
   const id = context.params.id;
   
