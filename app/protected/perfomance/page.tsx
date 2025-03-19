@@ -1,13 +1,7 @@
 // app/protected/performance/page.tsx
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
-import dynamic from 'next/dynamic';
-
-// Use dynamic import with no SSR to avoid hydration issues with charts
-const PerformanceTrackingPage = dynamic(
-  () => import('@/components/performance-tracking-page'), 
-  { ssr: false }
-);
+import PerformanceClient from './client';
 
 export default async function PerformancePage() {
   const supabase = await createClient();
@@ -20,5 +14,5 @@ export default async function PerformancePage() {
     return redirect("/sign-in");
   }
 
-  return <PerformanceTrackingPage />;
+  return <PerformanceClient />;
 }
