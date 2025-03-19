@@ -7,7 +7,7 @@ const LandingPage = () => {
   return (
     <div className="flex flex-col w-full">
       {/* Hero Section */}
-      <section className="flex flex-col md:flex-row items-center justify-between py-12 md:py-24">
+      <section className="flex flex-col md:flex-row items-center justify-between py-6 md:py-12">
         <div className="flex flex-col space-y-6 md:w-1/2 mb-10 md:mb-0">
           <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
             Take Control of Your <span className="text-primary">Training Journey</span>
