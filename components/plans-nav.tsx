@@ -1,18 +1,16 @@
-// components/plans-nav.tsx
 "use client";
 
 import React from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/router';
+import { usePathname } from 'next/navigation';
 import { Calendar, Dumbbell, BarChart2 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 
 export function PlansNav({ className }: { className?: string }) {
-  const router = useRouter();
-  const currentPath = router.pathname;
+  const pathname = usePathname();
   
   const isActive = (path: string) => {
-    return currentPath === path || currentPath.startsWith(path + '/');
+    return pathname === path || pathname?.startsWith(path);
   };
   
   return (

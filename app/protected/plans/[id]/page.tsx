@@ -1,5 +1,7 @@
+"use client";
+
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
+import { useRouter } from 'next/navigation';
 import { 
   CalendarDays, Clock, Calendar, Award, 
   PlusCircle, ChevronLeft, Shield, Loader2
@@ -73,7 +75,7 @@ const mockWorkouts = Array(8).fill(null).map((_, weekIndex) => ({
   ]
 }));
 
-export default function PlanDetailPage() {
+export default function PlanDetailPage({ params }: { params: { id: string } }) {
   const [plan, setPlan] = useState(mockPlan);
   const [workouts, setWorkouts] = useState(mockWorkouts);
   const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState(false);
@@ -85,12 +87,12 @@ export default function PlanDetailPage() {
   
   // In a real implementation, you would fetch the plan data from your API
   useEffect(() => {
-    const { id } = router.query;
+    const id = params.id;
     if (id) {
       // fetchPlanDetails(id);
       console.log("Fetching plan details for ID:", id);
     }
-  }, [router.query]);
+  }, [params.id]);
   
   const handleEnroll = async () => {
     setIsLoading(true);

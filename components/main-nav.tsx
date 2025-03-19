@@ -1,9 +1,8 @@
-// components/main-nav.tsx (Updated)
 "use client";
 
 import React from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/router';
+import { usePathname } from 'next/navigation';
 import { cn } from "@/lib/utils";
 import { CalendarDays, BarChart2, Dumbbell } from 'lucide-react';
 
@@ -12,11 +11,10 @@ interface MainNavProps {
 }
 
 export function MainNav({ className }: MainNavProps) {
-  const router = useRouter();
-  const currentPath = router.pathname;
+  const pathname = usePathname();
   
   const isActive = (path: string) => {
-    return currentPath === path || currentPath.startsWith(path);
+    return pathname === path || pathname?.startsWith(path);
   };
   
   return (
