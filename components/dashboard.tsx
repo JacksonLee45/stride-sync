@@ -369,78 +369,80 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 w-full p-4 max-w-6xl mx-auto">
-      <header className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Your Workout Calendar</h1>
-        <Button 
-          onClick={() => {
-            setSelectedDate(new Date().toISOString().split('T')[0]); // Reset to today
-            setIsFormDialogOpen(true);
-          }}
-          className="flex items-center gap-2"
-        >
-          <Plus size={16} />
-          New Workout
-        </Button>
-      </header>
+    <div className="w-full">
+      <div className="max-w-6xl mx-auto p-4">
+        <header className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">Your Workout Calendar</h1>
+          <Button 
+            onClick={() => {
+              setSelectedDate(new Date().toISOString().split('T')[0]); // Reset to today
+              setIsFormDialogOpen(true);
+            }}
+            className="flex items-center gap-2"
+          >
+            <Plus size={16} />
+            New Workout
+          </Button>
+        </header>
 
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" role="alert">
-          <p>{error}</p>
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" role="alert">
+            <p>{error}</p>
+          </div>
+        )}
+
+        <div className="bg-card rounded-lg border shadow-sm p-4">
+          {isLoading ? (
+            <CalendarSkeleton />
+          ) : isClient ? (
+            <ConfigProvider theme={customTheme}>
+              <div className={calendarCss.calendarWrapper}>
+                <Calendar 
+                  fullscreen={true} 
+                  cellRender={dateCellRender}
+                />
+              </div>
+            </ConfigProvider>
+          ) : (
+            <div>Loading calendar...</div>
+          )}
         </div>
-      )}
 
-      <div className="bg-card rounded-lg border shadow-sm p-4">
-        {isLoading ? (
-          <CalendarSkeleton />
-        ) : isClient ? (
-          <ConfigProvider theme={customTheme}>
-            <div className={calendarCss.calendarWrapper}>
-              <Calendar 
-                fullscreen={true} 
-                cellRender={dateCellRender}
-              />
-            </div>
-          </ConfigProvider>
-        ) : (
-          <div>Loading calendar...</div>
+        {/* Form dialog for creating new workouts */}
+        <WorkoutFormDialog 
+          isOpen={isFormDialogOpen}
+          onClose={() => setIsFormDialogOpen(false)}
+          onSave={handleSaveWorkout}
+          initialDate={selectedDate}
+        />
+
+        {/* Completion dialog for marking workouts as complete */}
+        {selectedWorkout && (
+          <WorkoutCompletionDialog 
+            isOpen={isCompletionDialogOpen}
+            onClose={() => {
+              setIsCompletionDialogOpen(false);
+              setSelectedWorkout(null);
+            }}
+            workout={selectedWorkout}
+            onComplete={handleCompleteWorkout}
+          />
+        )}
+
+        {/* Detail dialog for viewing and editing workouts */}
+        {selectedWorkout && (
+          <WorkoutDetailDialog
+            isOpen={isDetailDialogOpen}
+            onClose={() => {
+              setIsDetailDialogOpen(false);
+              setSelectedWorkout(null);
+            }}
+            workout={selectedWorkout}
+            onComplete={handleCompleteWorkout}
+            onUpdate={handleUpdateWorkout}
+          />
         )}
       </div>
-
-      {/* Form dialog for creating new workouts */}
-      <WorkoutFormDialog 
-        isOpen={isFormDialogOpen}
-        onClose={() => setIsFormDialogOpen(false)}
-        onSave={handleSaveWorkout}
-        initialDate={selectedDate}
-      />
-
-      {/* Completion dialog for marking workouts as complete */}
-      {selectedWorkout && (
-        <WorkoutCompletionDialog 
-          isOpen={isCompletionDialogOpen}
-          onClose={() => {
-            setIsCompletionDialogOpen(false);
-            setSelectedWorkout(null);
-          }}
-          workout={selectedWorkout}
-          onComplete={handleCompleteWorkout}
-        />
-      )}
-
-      {/* Detail dialog for viewing and editing workouts */}
-      {selectedWorkout && (
-        <WorkoutDetailDialog
-          isOpen={isDetailDialogOpen}
-          onClose={() => {
-            setIsDetailDialogOpen(false);
-            setSelectedWorkout(null);
-          }}
-          workout={selectedWorkout}
-          onComplete={handleCompleteWorkout}
-          onUpdate={handleUpdateWorkout}
-        />
-      )}
     </div>
   );
 };

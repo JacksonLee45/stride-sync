@@ -14,8 +14,35 @@ import {
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 
+// Define interfaces for type safety
+interface PlanData {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  difficulty: string;
+  durationWeeks: number;
+  workoutsPerWeek: number;
+}
+
+interface EnrolledPlan {
+  id: string;
+  user_id: string;
+  plan_id: string;
+  start_date: string;
+  end_date: string;
+  is_active: boolean;
+  created_at: string;
+  progress: number;
+  stats: {
+    totalWorkouts: number;
+    completedWorkouts: number;
+  };
+  plan: PlanData;
+}
+
 // Mock data - this would come from your API
-const mockEnrolledPlans = [
+const mockEnrolledPlans: EnrolledPlan[] = [
   {
     id: 'enrollment-1',
     user_id: 'user-123',
@@ -65,10 +92,10 @@ const mockEnrolledPlans = [
 ];
 
 export default function MyPlansPage() {
-  const [enrolledPlans, setEnrolledPlans] = useState(mockEnrolledPlans);
+  const [enrolledPlans, setEnrolledPlans] = useState<EnrolledPlan[]>(mockEnrolledPlans);
   const [isLoading, setIsLoading] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [planToDelete, setPlanToDelete] = useState(null);
+  const [planToDelete, setPlanToDelete] = useState<EnrolledPlan | null>(null);
   const [deleteWorkouts, setDeleteWorkouts] = useState(true);
   
   // In a real implementation, you would fetch data from your API
@@ -76,7 +103,7 @@ export default function MyPlansPage() {
     // fetchMyPlans();
   }, []);
   
-  const openDeleteDialog = (plan) => {
+  const openDeleteDialog = (plan: EnrolledPlan) => {
     setPlanToDelete(plan);
     setDeleteDialogOpen(true);
   };
@@ -104,18 +131,18 @@ export default function MyPlansPage() {
     }
   };
   
-  const formatDate = (dateString) => {
+  const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
   
-  const getProgressColor = (progress) => {
+  const getProgressColor = (progress: number) => {
     if (progress < 30) return 'bg-red-600';
     if (progress < 70) return 'bg-yellow-600';
     return 'bg-green-600';
   };
   
-  const getDifficultyColor = (difficulty) => {
+  const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
       case 'beginner':
         return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
@@ -128,7 +155,7 @@ export default function MyPlansPage() {
     }
   };
   
-  const getCategoryLabel = (category) => {
+  const getCategoryLabel = (category: string) => {
     switch (category) {
       case '5k': return '5K';
       case '10k': return '10K';
@@ -140,7 +167,8 @@ export default function MyPlansPage() {
   };
   
   return (
-    <div className="container mx-auto py-8 px-4 max-w-7xl">
+    <div className="w-full">
+      <div className="max-w-6xl mx-auto p-4">
       <header className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold mb-2">My Training Plans</h1>
@@ -313,6 +341,7 @@ export default function MyPlansPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
     </div>
   );
 }

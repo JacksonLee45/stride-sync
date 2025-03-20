@@ -1,6 +1,8 @@
 "use client";
 
+// This needs to be a client component due to its interactive nature
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
 import { useRouter } from 'next/navigation';
 import { 
   CalendarDays, Clock, Calendar, Award, 
@@ -15,15 +17,43 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Helper function to format date (instead of using date-fns)
-const formatDateToYYYYMMDD = (date) => {
+const formatDateToYYYYMMDD = (date: Date): string => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
 
+// Define a type for the plan data
+interface PlanData {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  difficulty: string;
+  durationWeeks: number;
+  workoutsPerWeek: number;
+  totalWorkouts: number;
+  estimatedCompletion: string;
+  highlights: string[];
+}
+
+// Define a type for the workout data
+interface WorkoutData {
+  week: number;
+  workouts: {
+    id: string;
+    dayNumber: number;
+    title: string;
+    type: string;
+    distance: number;
+    duration: string;
+    notes: string;
+  }[];
+}
+
 // This would come from your API
-const mockPlan = {
+const mockPlan: PlanData = {
   id: "plan-5k-beginner",
   name: "Beginner 5K Training Plan",
   description: "Perfect for first-time 5K runners or those looking to build consistent running habits. This 8-week plan gradually increases distance while including rest days to prevent injury.",
@@ -42,7 +72,7 @@ const mockPlan = {
 };
 
 // This would come from your API - these are the workouts in the plan
-const mockWorkouts = Array(8).fill(null).map((_, weekIndex) => ({
+const mockWorkouts: WorkoutData[] = Array(8).fill(null).map((_, weekIndex) => ({
   week: weekIndex + 1,
   workouts: [
     {
@@ -75,9 +105,12 @@ const mockWorkouts = Array(8).fill(null).map((_, weekIndex) => ({
   ]
 }));
 
-export default function PlanDetailPage({ params }: { params: { id: string } }) {
-  const [plan, setPlan] = useState(mockPlan);
-  const [workouts, setWorkouts] = useState(mockWorkouts);
+export default function PlanDetailPage() {
+  const params = useParams();
+  const id = params?.id as string;
+  
+  const [plan, setPlan] = useState<PlanData>(mockPlan);
+  const [workouts, setWorkouts] = useState<WorkoutData[]>(mockWorkouts);
   const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState(false);
   const [startDate, setStartDate] = useState(new Date());
   const [isLoading, setIsLoading] = useState(false);
@@ -87,12 +120,11 @@ export default function PlanDetailPage({ params }: { params: { id: string } }) {
   
   // In a real implementation, you would fetch the plan data from your API
   useEffect(() => {
-    const id = params.id;
     if (id) {
       // fetchPlanDetails(id);
       console.log("Fetching plan details for ID:", id);
     }
-  }, [params.id]);
+  }, [id]);
   
   const handleEnroll = async () => {
     setIsLoading(true);
@@ -117,7 +149,7 @@ export default function PlanDetailPage({ params }: { params: { id: string } }) {
     }
   };
   
-  const getDifficultyColor = (difficulty) => {
+  const getDifficultyColor = (difficulty: string): string => {
     switch (difficulty) {
       case 'beginner':
         return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
@@ -131,7 +163,8 @@ export default function PlanDetailPage({ params }: { params: { id: string } }) {
   };
   
   return (
-    <div className="container mx-auto py-8 px-4 max-w-7xl">
+    <div className="w-full">
+      <div className="max-w-6xl mx-auto p-4">
       <Button 
         variant="ghost" 
         className="mb-4 pl-0"
@@ -303,7 +336,7 @@ export default function PlanDetailPage({ params }: { params: { id: string } }) {
                   id="startDate"
                   type="date"
                   value={formatDateToYYYYMMDD(startDate)}
-                  onChange={(e) => setStartDate(new Date(e.target.value))}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setStartDate(new Date(e.target.value))}
                   min={formatDateToYYYYMMDD(new Date())}
                 />
               </div>
@@ -336,17 +369,25 @@ export default function PlanDetailPage({ params }: { params: { id: string } }) {
         </DialogContent>
       </Dialog>
     </div>
+    </div>
   );
 }
 
 // Helper component for enrollment dialog
-const Label = ({ children, htmlFor }) => (
+interface LabelProps {
+  children: React.ReactNode;
+  htmlFor: string;
+}
+
+const Label = ({ children, htmlFor }: LabelProps) => (
   <label htmlFor={htmlFor} className="block text-sm font-medium mb-1">
     {children}
   </label>
 );
 
-const Input = ({ ...props }) => (
+interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {}
+
+const Input = (props: InputProps) => (
   <input
     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
     {...props}

@@ -8,9 +8,9 @@ export default function PlansLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col w-full max-w-7xl mx-auto">
-      <div className="border-b mb-6">
-        <div className="container py-4">
+    <div className="w-full">
+      <div className="w-full border-b mb-6">
+        <div className="max-w-6xl mx-auto px-4 py-4">
           <PlansNav />
         </div>
       </div>

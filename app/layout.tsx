@@ -46,7 +46,9 @@ export default function RootLayout({
                   <HeaderAuth />
                 </div>
               </nav>
-              <div className="flex flex-col gap-20 max-w-5xl p-5">
+              
+              {/* Make sure children content gets full width */}
+              <div className="w-full">
                 {children}
               </div>
 

@@ -13,8 +13,20 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+// Define interfaces for type safety
+interface PlanData {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  difficulty: string;
+  durationWeeks: number;
+  workoutsPerWeek: number;
+  totalWorkouts: number;
+}
+
 // Mock data - this would come from your API
-const mockPlans = [
+const mockPlans: PlanData[] = [
   {
     id: 'plan-5k-beginner',
     name: 'Beginner 5K Training Plan',
@@ -108,8 +120,8 @@ const mockPlans = [
 ];
 
 export default function PlansBrowsePage() {
-  const [plans, setPlans] = useState(mockPlans);
-  const [filteredPlans, setFilteredPlans] = useState(mockPlans);
+  const [plans] = useState<PlanData[]>(mockPlans);
+  const [filteredPlans, setFilteredPlans] = useState<PlanData[]>(mockPlans);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
@@ -164,22 +176,22 @@ export default function PlansBrowsePage() {
     setFilteredPlans(results);
   }, [plans, searchTerm, activeCategory, filters]);
   
-  const handleSearch = (e) => {
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
   };
   
-  const handleCategoryChange = (value) => {
+  const handleCategoryChange = (value: string) => {
     setActiveCategory(value);
   };
   
-  const handleFilterChange = (type, value) => {
+  const handleFilterChange = (type: 'difficulty' | 'duration', value: string) => {
     setFilters(prev => ({
       ...prev,
       [type]: value
     }));
   };
   
-  const getDifficultyColor = (difficulty) => {
+  const getDifficultyColor = (difficulty: string): string => {
     switch (difficulty) {
       case 'beginner':
         return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
@@ -192,7 +204,7 @@ export default function PlansBrowsePage() {
     }
   };
   
-  const getCategoryLabel = (category) => {
+  const getCategoryLabel = (category: string): string => {
     switch (category) {
       case '5k': return '5K';
       case '10k': return '10K';
@@ -204,7 +216,8 @@ export default function PlansBrowsePage() {
   };
   
   return (
-    <div className="container mx-auto py-8 px-4 max-w-7xl">
+    <div className="w-full">
+      <div className="max-w-6xl mx-auto p-4">
       <header className="mb-8">
         <h1 className="text-3xl font-bold mb-2">Training Plans</h1>
         <p className="text-muted-foreground">
@@ -242,7 +255,7 @@ export default function PlansBrowsePage() {
             <select
               className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               value={filters.difficulty}
-              onChange={(e) => handleFilterChange('difficulty', e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleFilterChange('difficulty', e.target.value)}
             >
               <option value="all">All Levels</option>
               <option value="beginner">Beginner</option>
@@ -253,12 +266,12 @@ export default function PlansBrowsePage() {
             <select
               className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               value={filters.duration}
-              onChange={(e) => handleFilterChange('duration', e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleFilterChange('duration', e.target.value)}
             >
               <option value="all">Any Duration</option>
               <option value="short">Short (≤ 8 weeks)</option>
               <option value="medium">Medium (9-12 weeks)</option>
-              <option value="long">Long (> 12 weeks)</option>
+              <option value="long">Long (&gt; 12 weeks)</option>
             </select>
           </div>
         </div>
@@ -340,6 +353,7 @@ export default function PlansBrowsePage() {
           </Button>
         </div>
       )}
+    </div>
     </div>
   );
 }

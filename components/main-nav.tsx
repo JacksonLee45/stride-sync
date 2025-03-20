@@ -16,13 +16,14 @@ export function MainNav({ className }: MainNavProps) {
   const isActive = (path: string) => {
     return pathname === path || pathname?.startsWith(path);
   };
-  
+
+  // Define fixed widths for each navigation item to prevent shifting
   return (
-    <nav className={cn("flex gap-4", className)}>
+    <div className={cn("inline-flex items-center", className)}>
       <Link
         href="/protected"
         className={cn(
-          "flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary",
+          "inline-flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary px-4",
           isActive("/protected") && !isActive("/protected/performance") && !isActive("/protected/plans") && !isActive("/protected/my-plans")
             ? "text-primary" 
             : "text-muted-foreground"
@@ -35,7 +36,7 @@ export function MainNav({ className }: MainNavProps) {
       <Link
         href="/protected/performance"
         className={cn(
-          "flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary",
+          "inline-flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary px-4",
           isActive("/protected/performance") 
             ? "text-primary" 
             : "text-muted-foreground"
@@ -48,7 +49,7 @@ export function MainNav({ className }: MainNavProps) {
       <Link
         href="/protected/plans"
         className={cn(
-          "flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary",
+          "inline-flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary px-4",
           (isActive("/protected/plans") || isActive("/protected/my-plans"))
             ? "text-primary" 
             : "text-muted-foreground"
@@ -57,6 +58,6 @@ export function MainNav({ className }: MainNavProps) {
         <Dumbbell size={16} />
         <span>Training Plans</span>
       </Link>
-    </nav>
+    </div>
   );
 }
