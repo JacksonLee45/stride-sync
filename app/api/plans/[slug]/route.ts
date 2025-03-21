@@ -1,4 +1,4 @@
-// app/api/plans/[id]/route.ts
+// app/api/plans/[slug]/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 
@@ -6,7 +6,8 @@ export async function GET(
   request: Request,
   context: any
 ) {
-  const id = context.params.id;
+  const params = await context.params;
+  const slug = params.slug;
   
   try {
     const supabase = await createClient();
@@ -18,11 +19,11 @@ export async function GET(
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
     
-    // Get the plan details
+    // Get the plan details by slug instead of id
     const { data: plan, error } = await supabase
       .from('plans')
       .select('*')
-      .eq('id', id)
+      .eq('slug', slug)
       .single();
     
     if (error) {
@@ -33,11 +34,11 @@ export async function GET(
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
     
-    // Get the workouts for this plan
+    // Get the workouts for this plan using the plan's id
     const { data: workouts, error: workoutsError } = await supabase
       .from('plan_workouts')
       .select('*')
-      .eq('plan_id', id)
+      .eq('plan_id', plan.id)
       .order('day_number', { ascending: true });
     
     if (workoutsError) {
@@ -50,7 +51,7 @@ export async function GET(
       .from('user_plans')
       .select('*')
       .eq('user_id', user.id)
-      .eq('plan_id', id)
+      .eq('plan_id', plan.id)
       .maybeSingle();
     
     if (enrollmentError) {
@@ -65,7 +66,7 @@ export async function GET(
       enrollment
     });
   } catch (err: any) {
-    console.error('Error in GET /api/plans/[id]:', err);
+    console.error('Error in GET /api/plans/[slug]:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
