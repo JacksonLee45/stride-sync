@@ -17,12 +17,16 @@ import { toast } from "@/components/ui/use-toast";
 
 // Define interfaces for type safety
 interface PlanData {
+  id: string;
+  slug: string;
   name: string;
   description: string;
   category: string;
   difficulty_level: string;
   duration_weeks: number;
   workouts_per_week: number;
+  total_workouts: number;
+  highlights: string[];
 }
 
 interface EnrolledPlan {
@@ -245,7 +249,7 @@ export default function MyPlansPage() {
               </CardContent>
               <CardFooter>
                 <Button asChild variant="outline" className="w-full">
-                  <Link href={`/protected/plans/${enrollment.plan_id}`}>
+                  <Link href={`/protected/plans/${enrollment.plan.slug}`}>
                     View Plan Details
                   </Link>
                 </Button>

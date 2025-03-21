@@ -6,10 +6,10 @@ import { createClient } from "@/utils/supabase/server";
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    const { planId, startDate } = await request.json();
+    const { planSlug, startDate } = await request.json();
     
-    if (!planId || !startDate) {
-      return NextResponse.json({ error: 'Plan ID and start date are required' }, { status: 400 });
+    if (!planSlug || !startDate) {
+      return NextResponse.json({ error: 'Plan slug and start date are required' }, { status: 400 });
     }
     
     // Get the current user
@@ -18,6 +18,20 @@ export async function POST(request: Request) {
     if (userError || !user) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
+    
+    // First get the plan using the slug
+    const { data: plan, error: planLookupError } = await supabase
+      .from('plans')
+      .select('id, duration_weeks')
+      .eq('slug', planSlug)
+      .single();
+      
+    if (planLookupError) {
+      console.error('Error finding plan by slug:', planLookupError);
+      return NextResponse.json({ error: 'Plan not found' }, { status: 404 });
+    }
+    
+    const planId = plan.id;
     
     // Check if user is already enrolled in this plan
     const { data: existingEnrollment, error: checkError } = await supabase
@@ -37,18 +51,6 @@ export async function POST(request: Request) {
         error: 'You are already enrolled in this plan',
         enrollment: existingEnrollment
       }, { status: 400 });
-    }
-    
-    // Get the plan details to calculate the end date
-    const { data: plan, error: planError } = await supabase
-      .from('plans')
-      .select('duration_weeks')
-      .eq('id', planId)
-      .single();
-    
-    if (planError) {
-      console.error('Error fetching plan:', planError);
-      return NextResponse.json({ error: planError.message }, { status: 500 });
     }
     
     // Calculate end date

@@ -26,12 +26,14 @@ const formatDateToYYYYMMDD = (date: Date): string => {
 // Define interfaces for type safety
 interface PlanData {
   id: string;
+  slug: string;
   name: string;
   description: string;
   category: string;
   difficulty_level: string;
   duration_weeks: number;
   workouts_per_week: number;
+  total_workouts: number;
   highlights: string[];
   isEnrolled?: boolean;
   enrollment?: any;
@@ -62,7 +64,7 @@ interface WeeklyWorkout {
 
 export default function PlanDetailPage() {
   const params = useParams();
-  const id = params?.id as string;
+  const slug = params?.slug as string;
   const router = useRouter();
   
   const [plan, setPlan] = useState<PlanData | null>(null);
@@ -77,11 +79,11 @@ export default function PlanDetailPage() {
   // Fetch the plan details
   useEffect(() => {
     async function fetchPlanDetails() {
-      if (!id) return;
+      if (!slug) return;
       
       try {
         setIsLoading(true);
-        const response = await fetch(`/api/plans/${id}`);
+        const response = await fetch(`/api/plans/${slug}`);
         
         if (!response.ok) {
           if (response.status === 404) {
@@ -131,7 +133,7 @@ export default function PlanDetailPage() {
     }
     
     fetchPlanDetails();
-  }, [id]);
+  }, [slug]);
   
   const handleEnroll = async () => {
     if (!plan) return;
@@ -145,7 +147,7 @@ export default function PlanDetailPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          planId: plan.id,
+          planSlug: plan.slug,
           startDate: formatDateToYYYYMMDD(startDate)
         }),
       });
@@ -308,7 +310,7 @@ export default function PlanDetailPage() {
                 </div>
                 <div className="flex items-center">
                   <Calendar className="h-5 w-5 mr-2 text-muted-foreground" />
-                  <span>{plan.duration_weeks * plan.workouts_per_week} total workouts</span>
+                  <span>{plan.total_workouts} total workouts</span>
                 </div>
                 <div className="border-t pt-4 mt-4">
                   <h4 className="font-medium mb-2 flex items-center">
@@ -316,12 +318,15 @@ export default function PlanDetailPage() {
                     Plan Highlights
                   </h4>
                   <ul className="space-y-2">
-                    {plan.highlights.map((highlight, index) => (
-                      <li key={index} className="flex items-start">
-                        <Shield className="h-4 w-4 mr-2 text-muted-foreground mt-0.5" />
-                        <span className="text-sm">{highlight}</span>
-                      </li>
-                    ))}
+                    {plan.highlights && Array.isArray(plan.highlights) ? 
+                      plan.highlights.map((highlight, index) => (
+                        <li key={index} className="flex items-start">
+                          <Shield className="h-4 w-4 mr-2 text-muted-foreground mt-0.5" />
+                          <span className="text-sm">{highlight}</span>
+                        </li>
+                      )) : 
+                      <li>No highlights available</li>
+                    }
                   </ul>
                 </div>
               </div>
@@ -486,7 +491,7 @@ export default function PlanDetailPage() {
               <div className="rounded-lg border p-4 bg-muted/50">
                 <h4 className="font-medium mb-2 text-sm">What happens next?</h4>
                 <p className="text-sm text-muted-foreground">
-                  All {plan.duration_weeks * plan.workouts_per_week} workouts from this plan will be added to your calendar, starting on the date you selected.
+                  All {plan.total_workouts} workouts from this plan will be added to your calendar, starting on the date you selected.
                   You can modify or delete individual workouts at any time.
                 </p>
               </div>

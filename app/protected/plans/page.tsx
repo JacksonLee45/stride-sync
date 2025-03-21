@@ -16,12 +16,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 // Define interfaces for type safety
 interface PlanData {
   id: string;
+  slug: string;
   name: string;
   description: string;
   category: string;
   difficulty_level: string;
   duration_weeks: number;
   workouts_per_week: number;
+  total_workouts: number;
   highlights: string[];
 }
 
@@ -247,7 +249,7 @@ export default function PlansBrowsePage() {
               </CardContent>
               <CardFooter>
                 <Button asChild className="w-full">
-                  <Link href={`/protected/plans/${plan.id}`}>
+                  <Link href={`/protected/plans/${plan.slug}`}>
                     View Plan <ChevronRight size={16} className="ml-1" />
                   </Link>
                 </Button>
