@@ -1,6 +1,8 @@
+// app/api/my-plans/[id]/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 
+// GET handler for a specific user plan
 export async function GET(
   request: Request,
   context: any
@@ -69,6 +71,7 @@ export async function GET(
   }
 }
 
+// DELETE handler to unenroll from a plan
 export async function DELETE(
   request: Request,
   context: any

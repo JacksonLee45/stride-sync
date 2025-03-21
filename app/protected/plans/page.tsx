@@ -19,162 +19,75 @@ interface PlanData {
   name: string;
   description: string;
   category: string;
-  difficulty: string;
-  durationWeeks: number;
-  workoutsPerWeek: number;
-  totalWorkouts: number;
+  difficulty_level: string;
+  duration_weeks: number;
+  workouts_per_week: number;
+  highlights: string[];
 }
 
-// Mock data - this would come from your API
-const mockPlans: PlanData[] = [
-  {
-    id: 'plan-5k-beginner',
-    name: 'Beginner 5K Training Plan',
-    description: 'Perfect for first-time 5K runners or those looking to build consistent running habits.',
-    category: '5k',
-    difficulty: 'beginner',
-    durationWeeks: 8,
-    workoutsPerWeek: 3,
-    totalWorkouts: 24,
-  },
-  {
-    id: 'plan-5k-intermediate',
-    name: 'Intermediate 5K Training Plan',
-    description: 'Designed to help runners improve their 5K time with more structured workouts.',
-    category: '5k',
-    difficulty: 'intermediate',
-    durationWeeks: 8,
-    workoutsPerWeek: 4,
-    totalWorkouts: 32,
-  },
-  {
-    id: 'plan-10k-beginner',
-    name: 'Beginner 10K Training Plan',
-    description: 'Build endurance and prepare for your first 10K race with this progressive plan.',
-    category: '10k',
-    difficulty: 'beginner',
-    durationWeeks: 10,
-    workoutsPerWeek: 3,
-    totalWorkouts: 30,
-  },
-  {
-    id: 'plan-10k-intermediate',
-    name: 'Intermediate 10K Training Plan',
-    description: 'Take your 10K performance to the next level with speed work and targeted training.',
-    category: '10k',
-    difficulty: 'intermediate',
-    durationWeeks: 10,
-    workoutsPerWeek: 4,
-    totalWorkouts: 40,
-  },
-  {
-    id: 'plan-half-beginner',
-    name: 'Beginner Half Marathon Training Plan',
-    description: 'Gradually build endurance to complete your first 13.1 mile race with confidence.',
-    category: 'half-marathon',
-    difficulty: 'beginner',
-    durationWeeks: 12,
-    workoutsPerWeek: 4,
-    totalWorkouts: 48,
-  },
-  {
-    id: 'plan-half-intermediate',
-    name: 'Intermediate Half Marathon Training Plan',
-    description: 'Improve your half marathon performance with structured workouts and increased mileage.',
-    category: 'half-marathon',
-    difficulty: 'intermediate',
-    durationWeeks: 12,
-    workoutsPerWeek: 5,
-    totalWorkouts: 60,
-  },
-  {
-    id: 'plan-marathon-beginner',
-    name: 'Beginner Marathon Training Plan',
-    description: 'A conservative approach to prepare first-time marathoners for the full 26.2 mile distance.',
-    category: 'marathon',
-    difficulty: 'beginner',
-    durationWeeks: 16,
-    workoutsPerWeek: 4,
-    totalWorkouts: 64,
-  },
-  {
-    id: 'plan-marathon-intermediate',
-    name: 'Intermediate Marathon Training Plan',
-    description: 'Build on your marathon experience with increased mileage and more specific workouts.',
-    category: 'marathon',
-    difficulty: 'intermediate',
-    durationWeeks: 16,
-    workoutsPerWeek: 5,
-    totalWorkouts: 80,
-  },
-  {
-    id: 'plan-strength-runner',
-    name: 'Runner\'s Strength Training Plan',
-    description: 'Complement your running with targeted strength exercises to prevent injury and improve performance.',
-    category: 'strength',
-    difficulty: 'beginner',
-    durationWeeks: 8,
-    workoutsPerWeek: 2,
-    totalWorkouts: 16,
-  },
-];
-
 export default function PlansBrowsePage() {
-  const [plans] = useState<PlanData[]>(mockPlans);
-  const [filteredPlans, setFilteredPlans] = useState<PlanData[]>(mockPlans);
-  const [isLoading, setIsLoading] = useState(false);
+  const [plans, setPlans] = useState<PlanData[]>([]);
+  const [filteredPlans, setFilteredPlans] = useState<PlanData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
   const [filters, setFilters] = useState({
     difficulty: 'all',
     duration: 'all',
   });
-  
-  // In a real implementation, you would fetch data from your API
+
+  // Fetch plans from the API
   useEffect(() => {
-    // fetchPlans();
-  }, []);
-  
-  // Filter plans based on search term and active filters
-  useEffect(() => {
-    let results = plans;
-    
-    // Filter by search term
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      results = results.filter(
-        plan => plan.name.toLowerCase().includes(term) || 
-                plan.description.toLowerCase().includes(term)
-      );
-    }
-    
-    // Filter by category
-    if (activeCategory !== 'all') {
-      results = results.filter(plan => plan.category === activeCategory);
-    }
-    
-    // Filter by difficulty
-    if (filters.difficulty !== 'all') {
-      results = results.filter(plan => plan.difficulty === filters.difficulty);
-    }
-    
-    // Filter by duration
-    if (filters.duration !== 'all') {
-      switch (filters.duration) {
-        case 'short':
-          results = results.filter(plan => plan.durationWeeks <= 8);
-          break;
-        case 'medium':
-          results = results.filter(plan => plan.durationWeeks > 8 && plan.durationWeeks <= 12);
-          break;
-        case 'long':
-          results = results.filter(plan => plan.durationWeeks > 12);
-          break;
+    async function fetchPlans() {
+      try {
+        setIsLoading(true);
+        
+        // Construct URL with query parameters
+        let url = '/api/plans';
+        const params = new URLSearchParams();
+        
+        if (searchTerm) {
+          params.append('search', searchTerm);
+        }
+        
+        if (activeCategory !== 'all') {
+          params.append('category', activeCategory);
+        }
+        
+        if (filters.difficulty !== 'all') {
+          params.append('difficulty', filters.difficulty);
+        }
+        
+        if (filters.duration !== 'all') {
+          params.append('duration', filters.duration);
+        }
+        
+        const queryString = params.toString();
+        if (queryString) {
+          url += `?${queryString}`;
+        }
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch plans');
+        }
+        
+        const data = await response.json();
+        setPlans(data);
+        setFilteredPlans(data);
+        setError(null);
+      } catch (err: any) {
+        console.error('Error fetching plans:', err);
+        setError('Failed to load training plans. Please try again later.');
+      } finally {
+        setIsLoading(false);
       }
     }
     
-    setFilteredPlans(results);
-  }, [plans, searchTerm, activeCategory, filters]);
+    fetchPlans();
+  }, [searchTerm, activeCategory, filters]);
   
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
@@ -277,6 +190,13 @@ export default function PlansBrowsePage() {
         </div>
       </div>
       
+      {/* Error Message */}
+      {error && (
+        <div className="p-4 mb-6 bg-destructive/10 border border-destructive text-destructive rounded-md">
+          <p>{error}</p>
+        </div>
+      )}
+      
       {/* Plans Grid */}
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -305,8 +225,8 @@ export default function PlansBrowsePage() {
             <Card key={plan.id} className="flex flex-col h-full">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
-                  <Badge className={getDifficultyColor(plan.difficulty)}>
-                    {plan.difficulty.charAt(0).toUpperCase() + plan.difficulty.slice(1)}
+                  <Badge className={getDifficultyColor(plan.difficulty_level)}>
+                    {plan.difficulty_level.charAt(0).toUpperCase() + plan.difficulty_level.slice(1)}
                   </Badge>
                   <Badge variant="outline">{getCategoryLabel(plan.category)}</Badge>
                 </div>
@@ -317,11 +237,11 @@ export default function PlansBrowsePage() {
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div className="flex items-center">
                     <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
-                    <span>{plan.durationWeeks} weeks</span>
+                    <span>{plan.duration_weeks} weeks</span>
                   </div>
                   <div className="flex items-center">
                     <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
-                    <span>{plan.workoutsPerWeek}/week</span>
+                    <span>{plan.workouts_per_week}/week</span>
                   </div>
                 </div>
               </CardContent>

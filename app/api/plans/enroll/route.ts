@@ -8,11 +8,35 @@ export async function POST(request: Request) {
     const supabase = await createClient();
     const { planId, startDate } = await request.json();
     
+    if (!planId || !startDate) {
+      return NextResponse.json({ error: 'Plan ID and start date are required' }, { status: 400 });
+    }
+    
     // Get the current user
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     
     if (userError || !user) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+    
+    // Check if user is already enrolled in this plan
+    const { data: existingEnrollment, error: checkError } = await supabase
+      .from('user_plans')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('plan_id', planId)
+      .maybeSingle();
+    
+    if (checkError) {
+      console.error('Error checking enrollment:', checkError);
+      return NextResponse.json({ error: checkError.message }, { status: 500 });
+    }
+    
+    if (existingEnrollment) {
+      return NextResponse.json({ 
+        error: 'You are already enrolled in this plan',
+        enrollment: existingEnrollment
+      }, { status: 400 });
     }
     
     // Get the plan details to calculate the end date
@@ -32,6 +56,9 @@ export async function POST(request: Request) {
     const end = new Date(start);
     end.setDate(start.getDate() + (plan.duration_weeks * 7));
     
+    // Format date to YYYY-MM-DD
+    const endDateString = end.toISOString().split('T')[0];
+    
     // Enroll user in the plan
     const { data: enrollment, error: enrollmentError } = await supabase
       .from('user_plans')
@@ -40,7 +67,7 @@ export async function POST(request: Request) {
           user_id: user.id,
           plan_id: planId,
           start_date: startDate,
-          end_date: end.toISOString().split('T')[0],
+          end_date: endDateString,
           is_active: true
         }
       ])
@@ -69,19 +96,20 @@ export async function POST(request: Request) {
       const workoutDate = new Date(start);
       workoutDate.setDate(start.getDate() + (planWorkout.day_number - 1));
       
+      // Format date to YYYY-MM-DD
+      const workoutDateString = workoutDate.toISOString().split('T')[0];
+      
       // Create the base workout
-      const workout = {
+      return {
         user_id: user.id,
         title: planWorkout.title,
-        date: workoutDate.toISOString().split('T')[0],
+        date: workoutDateString,
         type: planWorkout.type,
         notes: planWorkout.notes,
         status: 'planned',
         from_plan_id: planId,
         from_plan_workout_id: planWorkout.id
       };
-      
-      return workout;
     });
     
     // Insert all workouts at once
@@ -92,40 +120,56 @@ export async function POST(request: Request) {
     
     if (createError) {
       console.error('Error creating workouts:', createError);
+      
+      // Attempt to rollback the enrollment
+      await supabase
+        .from('user_plans')
+        .delete()
+        .eq('id', enrollment.id);
+        
       return NextResponse.json({ error: createError.message }, { status: 500 });
     }
     
     // For each created workout, add the type-specific details (run or weightlifting)
+    let detailsCreated = 0;
+    
     for (let i = 0; i < createdWorkouts.length; i++) {
       const workout = createdWorkouts[i];
       const planWorkout = planWorkouts.find(pw => pw.id === workout.from_plan_workout_id);
       
-      if (workout.type === 'run') {
+      if (!planWorkout) continue;
+      
+      if (workout.type === 'run' && planWorkout.run_details) {
         // Add run details
-        await supabase
+        const { error: runError } = await supabase
           .from('run_workouts')
           .insert({
             id: workout.id,
-            run_type: planWorkout.run_details?.run_type || 'Easy',
-            planned_distance: planWorkout.run_details?.planned_distance,
-            planned_pace: planWorkout.run_details?.planned_pace
+            run_type: planWorkout.run_details.run_type || 'Easy',
+            planned_distance: planWorkout.run_details.planned_distance,
+            planned_pace: planWorkout.run_details.planned_pace
           });
-      } else if (workout.type === 'weightlifting') {
+          
+        if (!runError) detailsCreated++;
+      } else if (workout.type === 'weightlifting' && planWorkout.weightlifting_details) {
         // Add weightlifting details
-        await supabase
+        const { error: liftError } = await supabase
           .from('weightlifting_workouts')
           .insert({
             id: workout.id,
-            focus_area: planWorkout.weightlifting_details?.focus_area,
-            planned_duration: planWorkout.weightlifting_details?.planned_duration
+            focus_area: planWorkout.weightlifting_details.focus_area,
+            planned_duration: planWorkout.weightlifting_details.planned_duration
           });
+          
+        if (!liftError) detailsCreated++;
       }
     }
     
     return NextResponse.json({
       success: true,
       enrollment,
-      workoutsCreated: createdWorkouts.length
+      workoutsCreated: createdWorkouts.length,
+      detailsCreated
     });
   } catch (err: any) {
     console.error('Error in POST /api/plans/enroll:', err);

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
-  Trash2, Calendar, Clock, Badge, XCircle, AlertTriangle
+  Trash2, Calendar, Clock, Badge, XCircle, AlertTriangle, Loader2
 } from 'lucide-react';
 import { 
   Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle 
@@ -13,16 +13,16 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle 
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
+import { toast } from "@/components/ui/use-toast";
 
 // Define interfaces for type safety
 interface PlanData {
-  id: string;
   name: string;
   description: string;
   category: string;
-  difficulty: string;
-  durationWeeks: number;
-  workoutsPerWeek: number;
+  difficulty_level: string;
+  duration_weeks: number;
+  workouts_per_week: number;
 }
 
 interface EnrolledPlan {
@@ -41,66 +41,38 @@ interface EnrolledPlan {
   plan: PlanData;
 }
 
-// Mock data - this would come from your API
-const mockEnrolledPlans: EnrolledPlan[] = [
-  {
-    id: 'enrollment-1',
-    user_id: 'user-123',
-    plan_id: 'plan-5k-beginner',
-    start_date: '2025-03-01',
-    end_date: '2025-04-27',
-    is_active: true,
-    created_at: '2025-02-28T12:00:00Z',
-    progress: 65,
-    stats: {
-      totalWorkouts: 24,
-      completedWorkouts: 16
-    },
-    plan: {
-      id: 'plan-5k-beginner',
-      name: 'Beginner 5K Training Plan',
-      description: 'Perfect for first-time 5K runners or those looking to build consistent running habits.',
-      category: '5k',
-      difficulty: 'beginner',
-      durationWeeks: 8,
-      workoutsPerWeek: 3,
-    }
-  },
-  {
-    id: 'enrollment-2',
-    user_id: 'user-123',
-    plan_id: 'plan-strength-runner',
-    start_date: '2025-03-15',
-    end_date: '2025-05-10',
-    is_active: true,
-    created_at: '2025-03-14T10:30:00Z',
-    progress: 25,
-    stats: {
-      totalWorkouts: 16,
-      completedWorkouts: 4
-    },
-    plan: {
-      id: 'plan-strength-runner',
-      name: 'Runner\'s Strength Training Plan',
-      description: 'Complement your running with targeted strength exercises to prevent injury and improve performance.',
-      category: 'strength',
-      difficulty: 'beginner',
-      durationWeeks: 8,
-      workoutsPerWeek: 2,
-    }
-  }
-];
-
 export default function MyPlansPage() {
-  const [enrolledPlans, setEnrolledPlans] = useState<EnrolledPlan[]>(mockEnrolledPlans);
-  const [isLoading, setIsLoading] = useState(false);
+  const [enrolledPlans, setEnrolledPlans] = useState<EnrolledPlan[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [planToDelete, setPlanToDelete] = useState<EnrolledPlan | null>(null);
   const [deleteWorkouts, setDeleteWorkouts] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
   
-  // In a real implementation, you would fetch data from your API
+  // Fetch enrolled plans
   useEffect(() => {
-    // fetchMyPlans();
+    async function fetchMyPlans() {
+      try {
+        setIsLoading(true);
+        const response = await fetch('/api/my-plans');
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch your plans');
+        }
+        
+        const data = await response.json();
+        setEnrolledPlans(data);
+        setError(null);
+      } catch (err: any) {
+        console.error('Error fetching plans:', err);
+        setError('Failed to load your training plans. Please try again later.');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    
+    fetchMyPlans();
   }, []);
   
   const openDeleteDialog = (plan: EnrolledPlan) => {
@@ -111,23 +83,39 @@ export default function MyPlansPage() {
   const handleUnenroll = async () => {
     if (!planToDelete) return;
     
-    setIsLoading(true);
+    setIsDeleting(true);
     try {
-      // Call your API to unenroll from the plan
-      // await unenrollFromPlan(planToDelete.id, deleteWorkouts);
+      // Call API to unenroll from the plan
+      const response = await fetch(`/api/my-plans/${planToDelete.id}?deleteWorkouts=${deleteWorkouts}`, {
+        method: 'DELETE',
+      });
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to unenroll from plan');
+      }
       
       // Update local state
       setEnrolledPlans(prev => prev.filter(p => p.id !== planToDelete.id));
       setDeleteDialogOpen(false);
       setPlanToDelete(null);
-    } catch (error) {
-      console.error('Error unenrolling from plan:', error);
-      // Show error message
+      
+      toast({
+        title: "Successfully unenrolled",
+        description: deleteWorkouts 
+          ? "Future workouts from this plan have been removed from your calendar." 
+          : "You have been unenrolled from the plan. Existing workouts remain on your calendar.",
+        variant: "default",
+      });
+    } catch (err: any) {
+      console.error('Error unenrolling from plan:', err);
+      toast({
+        title: "Unenroll failed",
+        description: err.message || "There was a problem unenrolling from this plan. Please try again.",
+        variant: "destructive",
+      });
     } finally {
-      setIsLoading(false);
+      setIsDeleting(false);
     }
   };
   
@@ -137,9 +125,9 @@ export default function MyPlansPage() {
   };
   
   const getProgressColor = (progress: number) => {
-    if (progress < 30) return 'bg-red-600';
-    if (progress < 70) return 'bg-yellow-600';
-    return 'bg-green-600';
+    if (progress < 30) return '';
+    if (progress < 70) return '';
+    return '';
   };
   
   const getDifficultyColor = (difficulty: string) => {
@@ -181,6 +169,12 @@ export default function MyPlansPage() {
         </Button>
       </header>
       
+      {error && (
+        <div className="p-4 mb-6 bg-destructive/10 border border-destructive text-destructive rounded-md">
+          <p>{error}</p>
+        </div>
+      )}
+      
       {isLoading ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {Array(2).fill(null).map((_, index) => (
@@ -206,8 +200,8 @@ export default function MyPlansPage() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div className="flex space-x-2">
-                    <div className={`px-2 py-1 rounded-full text-xs font-medium ${getDifficultyColor(enrollment.plan.difficulty)}`}>
-                      {enrollment.plan.difficulty.charAt(0).toUpperCase() + enrollment.plan.difficulty.slice(1)}
+                    <div className={`px-2 py-1 rounded-full text-xs font-medium ${getDifficultyColor(enrollment.plan.difficulty_level)}`}>
+                      {enrollment.plan.difficulty_level.charAt(0).toUpperCase() + enrollment.plan.difficulty_level.slice(1)}
                     </div>
                     <div className="px-2 py-1 rounded-full text-xs font-medium bg-secondary text-secondary-foreground">
                       {getCategoryLabel(enrollment.plan.category)}
@@ -245,13 +239,13 @@ export default function MyPlansPage() {
                   </div>
                   <div className="flex items-center">
                     <Calendar className="h-5 w-5 mr-2 text-muted-foreground" />
-                    <span>{enrollment.plan.durationWeeks} weeks total</span>
+                    <span>{enrollment.plan.duration_weeks} weeks total</span>
                   </div>
                 </div>
               </CardContent>
               <CardFooter>
                 <Button asChild variant="outline" className="w-full">
-                  <Link href={`/protected/plans/${enrollment.plan.id}`}>
+                  <Link href={`/protected/plans/${enrollment.plan_id}`}>
                     View Plan Details
                   </Link>
                 </Button>
@@ -325,10 +319,10 @@ export default function MyPlansPage() {
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleUnenroll} disabled={isLoading}>
-              {isLoading ? (
+            <Button variant="destructive" onClick={handleUnenroll} disabled={isDeleting}>
+              {isDeleting ? (
                 <>
-                  <span className="animate-spin mr-2">⟳</span>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Unenrolling...
                 </>
               ) : (
