@@ -1,10 +1,11 @@
+// components/main-nav.tsx (updated)
 "use client";
 
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from "@/lib/utils";
-import { CalendarDays, BarChart2, Dumbbell } from 'lucide-react';
+import { CalendarDays, BarChart2, Dumbbell, Brain } from 'lucide-react';
 
 interface MainNavProps {
   className?: string;
@@ -17,20 +18,32 @@ export function MainNav({ className }: MainNavProps) {
     return pathname === path || pathname?.startsWith(path);
   };
 
-  // Define fixed widths for each navigation item to prevent shifting
   return (
     <div className={cn("inline-flex items-center", className)}>
       <Link
         href="/protected"
         className={cn(
           "inline-flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary px-4",
-          isActive("/protected") && !isActive("/protected/performance") && !isActive("/protected/plans") && !isActive("/protected/my-plans")
+          isActive("/protected") && !isActive("/protected/performance") && !isActive("/protected/plans") && !isActive("/protected/coach") && !isActive("/protected/my-plans")
             ? "text-primary" 
             : "text-muted-foreground"
         )}
       >
         <CalendarDays size={16} />
         <span>Calendar</span>
+      </Link>
+      
+      <Link
+        href="/protected/coach"
+        className={cn(
+          "inline-flex items-center gap-1 text-sm font-medium transition-colors hover:text-primary px-4",
+          isActive("/protected/coach") 
+            ? "text-primary" 
+            : "text-muted-foreground"
+        )}
+      >
+        <Brain size={16} />
+        <span>AI Coach</span>
       </Link>
       
       <Link
