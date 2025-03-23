@@ -93,18 +93,18 @@ export default function CoachPage() {
     }
   }, [messages]);
 
-  // Update components/ai-coach-page.tsx
+// Handle sending a message to the AI coach
 const handleSendMessage = async () => {
   if (!input.trim() || isLoading) return;
 
   // Add user message to the conversation
-  const userMessage = { role: 'user', content: input };
+  const userMessage = { role: 'user' as MessageRole, content: input };
   setMessages(prev => [...prev, userMessage]);
   setInput('');
   setIsLoading(true);
   
   // Add a placeholder for the assistant's response
-  setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+  setMessages(prev => [...prev, { role: 'assistant' as MessageRole, content: '' }]);
 
   try {
     // Send the conversation history to the AI coach API
@@ -126,6 +126,7 @@ const handleSendMessage = async () => {
     const reader = response.body?.getReader();
     if (!reader) throw new Error('Response body is null');
 
+    // Initialize accumulated content
     let accumulatedContent = '';
     
     // Read and process each chunk
@@ -146,7 +147,7 @@ const handleSendMessage = async () => {
             setMessages(prev => {
               const newMessages = [...prev];
               newMessages[newMessages.length - 1] = {
-                role: 'assistant',
+                role: 'assistant' as MessageRole,
                 content: accumulatedContent
               };
               return newMessages;
@@ -187,7 +188,7 @@ const handleSendMessage = async () => {
       // Replace the last message with an error message
       const newMessages = [...prev];
       newMessages[newMessages.length - 1] = { 
-        role: 'assistant', 
+        role: 'assistant' as MessageRole, 
         content: "I'm sorry, I encountered an error while processing your request. Please try again."
       };
       return newMessages;
