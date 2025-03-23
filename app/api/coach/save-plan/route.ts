@@ -53,6 +53,9 @@ export async function POST(request: Request) {
     console.log(`Received ${workoutPlan.workouts.length} workouts to save`);
     
     // Validate workouts before processing
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Set to beginning of day for comparison
+    
     const validWorkouts = workoutPlan.workouts.filter((workout: any) => {
       // Basic validation for all workouts
       const hasBasicFields = workout && 
@@ -64,6 +67,16 @@ export async function POST(request: Request) {
       
       if (!hasBasicFields) {
         console.warn('Skipping workout with missing basic fields:', workout);
+        return false;
+      }
+      
+      // Date validation - ensure date is today or future
+      const workoutDate = new Date(workout.date);
+      workoutDate.setHours(0, 0, 0, 0);
+      const isValidDate = workoutDate >= today;
+      
+      if (!isValidDate) {
+        console.warn(`Skipping workout with past date: ${workout.date}`, workout);
         return false;
       }
       
@@ -84,6 +97,27 @@ export async function POST(request: Request) {
       
       return false;
     });
+    
+    // Fix past dates if needed (ensure all workouts start from today)
+    if (validWorkouts.length > 0) {
+      const allDates = validWorkouts.map((w: any) => new Date(w.date));
+      const earliestDate = new Date(Math.min(...allDates.map((d: Date) => d.getTime())));
+      
+      // If earliest date is in the past, shift all workouts forward
+      if (earliestDate < today) {
+        console.log('Fixing past dates by shifting workouts forward');
+        
+        const msPerDay = 24 * 60 * 60 * 1000;
+        const daysToShift = Math.ceil((today.getTime() - earliestDate.getTime()) / msPerDay);
+        
+        // Shift all workout dates forward
+        validWorkouts.forEach((workout: any) => {
+          const oldDate = new Date(workout.date);
+          const newDate = new Date(oldDate.getTime() + (daysToShift * msPerDay));
+          workout.date = newDate.toISOString().split('T')[0];
+        });
+      }
+    }
     
     console.log(`After validation, saving ${validWorkouts.length} valid workouts`);
     

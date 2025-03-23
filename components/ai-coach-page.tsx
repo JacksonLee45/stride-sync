@@ -338,7 +338,8 @@ const handleSendMessage = async () => {
     }
   };
 
-  // In the saveWorkoutPlan function
+
+// In the saveWorkoutPlan function
 const saveWorkoutPlan = async () => {
   if (!workoutPlan) return;
   
@@ -350,15 +351,38 @@ const saveWorkoutPlan = async () => {
     }
     
     // Validate workouts before sending to API
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Set to beginning of day for comparison
+    
     const totalWorkouts = workoutPlan.workouts.length;
-    const validWorkouts = workoutPlan.workouts.filter(workout => 
-      workout && 
-      workout.title && 
-      workout.date && 
-      workout.type &&
-      ((workout.type === 'run' && workout.runType && workout.distance) ||
-       (workout.type === 'weightlifting' && workout.focusArea && workout.duration))
-    );
+    const validWorkouts = workoutPlan.workouts.filter(workout => {
+      // Check for required fields
+      const hasRequiredFields = workout && 
+        workout.title && 
+        workout.date && 
+        workout.type;
+      
+      if (!hasRequiredFields) return false;
+      
+      // Check for valid date (must be today or in the future)
+      const workoutDate = new Date(workout.date);
+      workoutDate.setHours(0, 0, 0, 0); // Set to beginning of day for comparison
+      const isValidDate = workoutDate >= today;
+      
+      if (!isValidDate) {
+        console.warn(`Skipping workout with past date: ${workout.date}`, workout);
+        return false;
+      }
+      
+      // Check type-specific required fields
+      if (workout.type === 'run') {
+        return !!workout.runType && workout.distance !== undefined;
+      } else if (workout.type === 'weightlifting') {
+        return !!workout.focusArea && !!workout.duration;
+      }
+      
+      return false;
+    });
     
     if (validWorkouts.length === 0) {
       throw new Error('No valid workouts found in the plan');
@@ -380,12 +404,40 @@ const saveWorkoutPlan = async () => {
     }
 
     const response = await fetch('/api/coach/save-plan', {
-      // existing fetch code...
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        workoutPlan,
+        conversationId: null // Optional - if you want to associate with a conversation
+      }),
     });
 
-    // existing success handling...
-  } catch (error) {
-    // existing error handling...
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to save workout plan');
+    }
+
+    const data = await response.json();
+    
+    // Show success message
+    toast({
+      title: "Success!",
+      description: `Your plan "${workoutPlan.planName}" with ${data.savedWorkouts} workouts has been added to your calendar.`,
+    });
+    
+    // Redirect to calendar view after successful save
+    router.push('/protected');
+  } catch (error: any) {
+    console.error('Error saving workout plan:', error);
+    toast({
+      variant: "destructive",
+      title: "Failed to save plan",
+      description: error.message || "There was a problem saving your workout plan. Please try again.",
+    });
+  } finally {
+    setIsLoading(false);
   }
 };
 

@@ -73,7 +73,7 @@ export default function PerformanceTrackingPage() {
       )}
 
       {/* Stats Cards Component */}
-      <StatCards isLoading={isLoading} stats={totalStats} />
+
 
       {/* Tabs and Chart */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
@@ -86,7 +86,7 @@ export default function PerformanceTrackingPage() {
             <CardHeader>
               <CardTitle>Weekly Running Mileage</CardTitle>
               <CardDescription>
-                The past 3 months and planned mileage for the next month
+                The past 3 months and planned mileage for the next month pooop
               </CardDescription>
             </CardHeader>
             <CardContent className="h-[400px]">

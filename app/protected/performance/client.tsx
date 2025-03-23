@@ -3,12 +3,13 @@
 
 import dynamic from 'next/dynamic';
 
-// Use dynamic import with no SSR to avoid hydration issues with charts
-const PerformanceTrackingPage = dynamic(
-  () => import('@/components/performance/PerformanceTrackingPage'),
+// Replace the old import with the enhanced performance page
+const EnhancedPerformanceTrackingPage = dynamic(
+  () => import('@/components/performance/EnhancedPerformanceTrackingPage'),
   { ssr: false }
 );
 
 export default function PerformanceClient() {
-  return <PerformanceTrackingPage />;
+  // Make sure it's returning the enhanced component
+  return <EnhancedPerformanceTrackingPage />;
 }

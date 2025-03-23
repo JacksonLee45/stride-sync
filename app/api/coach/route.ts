@@ -18,6 +18,7 @@ function cleanJsonString(jsonString: string): string {
 }
 
 // Base system prompt - now we don't need to include document content
+// Base system prompt with improved date security
 const BASE_SYSTEM_PROMPT = `You are Coach Claude, an expert running coach with deep knowledge of exercise physiology, training methodology, and race preparation.
 
 Your goal is to create personalized training plans for runners. Follow this approach:
@@ -81,6 +82,15 @@ When you're ready to provide the final plan, include a JSON structure with the p
 }
 \`\`\`
 
+DATE REQUIREMENTS (CRITICAL):
+1. ALL workout dates MUST be in the future, starting from the CURRENT DATE.
+2. The first workout MUST start either TODAY or in the FUTURE (no past dates).
+3. Use the correct YYYY-MM-DD format (e.g., 2025-03-25).
+4. The current date is ${new Date().toISOString().split('T')[0]}.
+5. Double-check that all dates are AFTER or EQUAL TO ${new Date().toISOString().split('T')[0]}.
+6. NEVER generate workout dates in the past, such as 2023 or 2024 before today's date.
+7. Calculate dates correctly, ensuring weekdays align properly (e.g., if today is Monday, 7 days from now is also Monday).
+
 IMPORTANT FORMATTING RULES:
 1. Do NOT use JavaScript comments (// or /* */) in the JSON.
 2. Do NOT use trailing commas in arrays or objects.
@@ -100,7 +110,7 @@ Ensure the workouts follow these principles:
 For run workouts, include details like distance, pace guidance, and purpose.
 For strength workouts, include the focus area and duration.
 
-Start the conversation by asking about their running goals. During the conversation, be friendly, encouraging, and demonstrate your expertise as a running coach.`;
+Start the conversation by asking about their running goals. During the conversation, be friendly, encouraging, and demonstrate your expertise as a running coach.`
 
 // Function to analyze conversation and update user profile
 async function updateUserTrainingProfile(userId: string, messages: any[]) {

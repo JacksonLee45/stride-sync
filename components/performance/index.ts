@@ -1,6 +1,9 @@
 // components/performance/index.ts
-export { default as PerformanceTrackingPage } from './PerformanceTrackingPage';
+export { default as EnhancedPerformanceTrackingPage } from './EnhancedPerformanceTrackingPage';
 export { default as StatCards } from './StatCards';
-export { default as MileageAreaChart } from './MileageAreaChart';
-export { default as CustomTooltip } from './CustomToolTip';
-export * from './DataProcessing';
+export { default as CompletedMileageChart } from './CompletedMileageChart';
+export { default as ScheduledMileageChart } from './ScheduledMileageChart';
+export { default as WeeklyVolumeChart } from './WeeklyVolumeChart';
+export { default as TrainingConsistencyChart } from './TrainingConsistencyChart';
+export { default as WorkoutTypeDistribution } from './WorkoutTypeDistribution';
+export { default as MonthlyTrendsChart } from './MonthlyTrendsChart';
