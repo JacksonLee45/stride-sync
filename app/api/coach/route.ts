@@ -2,6 +2,21 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 
+// This function cleans JSON strings by removing JavaScript-style comments
+function cleanJsonString(jsonString: string): string {
+  // Remove single-line comments (both // and # styles)
+  let cleaned = jsonString.replace(/\/\/.*?($|\n)/g, '');
+  cleaned = cleaned.replace(/#.*?($|\n)/g, '');
+  
+  // Remove multi-line comments
+  cleaned = cleaned.replace(/\/\*[\s\S]*?\*\//g, '');
+  
+  // Remove trailing commas before closing brackets/braces
+  cleaned = cleaned.replace(/,(\s*[\]}])/g, '$1');
+  
+  return cleaned;
+}
+
 // Base system prompt - now we don't need to include document content
 const BASE_SYSTEM_PROMPT = `You are Coach Claude, an expert running coach with deep knowledge of exercise physiology, training methodology, and race preparation.
 
@@ -45,19 +60,35 @@ When you're ready to provide the final plan, include a JSON structure with the p
     "duration": "8 weeks",
     "workouts": [
       {
-        "title": "Easy Run",
-        "date": "2025-03-25",
-        "type": "run",
-        "runType": "Easy",
-        "distance": 2.5,
+        "title": "Easy Run",  // REQUIRED
+        "date": "2025-03-25", // REQUIRED - must be in YYYY-MM-DD format
+        "type": "run",        // REQUIRED - must be either "run" or "weightlifting"
+        "runType": "Easy",    // REQUIRED for run workouts
+        "distance": 2.5,      // REQUIRED for run workouts (in miles)
         "pace": "comfortable conversation pace",
         "notes": "Focus on maintaining good form"
       },
-      ...more workouts...
+      {
+        "title": "Strength Training", // REQUIRED
+        "date": "2025-03-26",        // REQUIRED - must be in YYYY-MM-DD format
+        "type": "weightlifting",     // REQUIRED
+        "focusArea": "Core & Lower Body", // REQUIRED for weightlifting workouts
+        "duration": "30 minutes",    // REQUIRED for weightlifting workouts
+        "notes": "Focus on form and control"
+      }
     ]
   }
 }
 \`\`\`
+
+IMPORTANT FORMATTING RULES:
+1. Do NOT use JavaScript comments (// or /* */) in the JSON.
+2. Do NOT use trailing commas in arrays or objects.
+3. Include ALL workouts in the workouts array - do not abbreviate with comments.
+4. Each workout MUST include all required fields listed above.
+5. After generating the JSON plan, conclude with: "Your personalized training plan is ready! Would you like to save this plan to your calendar?"
+
+This specific message is important for the app interface to recognize that the plan is ready to be saved.
 
 Ensure the workouts follow these principles:
 - Realistic progression (no more than 10% mileage increase per week)
@@ -70,9 +101,6 @@ For run workouts, include details like distance, pace guidance, and purpose.
 For strength workouts, include the focus area and duration.
 
 Start the conversation by asking about their running goals. During the conversation, be friendly, encouraging, and demonstrate your expertise as a running coach.`;
-
-// Collection ID from Anthropic Console
-// const KNOWLEDGE_COLLECTION_ID = process.env.ANTHROPIC_COLLECTION_ID || 'YOUR_COLLECTION_ID_HERE';
 
 // Function to analyze conversation and update user profile
 async function updateUserTrainingProfile(userId: string, messages: any[]) {
@@ -237,22 +265,46 @@ export async function POST(request: Request) {
                   }) + '\n'));
                 } else if (data.type === 'message_stop') {
                   // Message is complete - check for workout plan in the content
-                  const jsonMatch = fullText.match(/```json\s*({[\s\S]*?})\s*```/);
+                  const jsonMatch = fullText.match(/```json\s*([\s\S]*?)\s*```/);
                   if (jsonMatch && jsonMatch[1]) {
                     try {
-                      const parsedJson = JSON.parse(jsonMatch[1]);
-                      workoutPlan = parsedJson.workoutPlan;
+                      // Clean the JSON string before parsing
+                      const cleanedJsonString = cleanJsonString(jsonMatch[1]);
+                      const parsedJson = JSON.parse(cleanedJsonString);
+                      workoutPlan = parsedJson.workoutPlan || null;
+                      
+                      // Log the cleaned JSON for debugging
+                      console.log('Cleaned JSON successfully parsed');
+                      
+                      // Explicitly flag that a plan was found
+                      const planFound = !!workoutPlan;
+                      
+                      // Send complete message with workout plan status
+                      controller.enqueue(encoder.encode(JSON.stringify({ 
+                        type: 'complete', 
+                        workoutPlan: workoutPlan,
+                        planFound: planFound,
+                        citations: data.message?.citations || []
+                      }) + '\n'));
                     } catch (error) {
                       console.error('Error parsing workout plan JSON:', error);
+                      // Send the error but continue
+                      controller.enqueue(encoder.encode(JSON.stringify({ 
+                        type: 'complete', 
+                        parseError: true,
+                        errorDetails: error instanceof Error ? error.message : 'Unknown JSON parsing error',
+                        rawJsonString: jsonMatch[1], // Send the raw JSON string for client-side handling
+                        citations: data.message?.citations || []
+                      }) + '\n'));
                     }
+                  } else {
+                    // No JSON found in the response
+                    controller.enqueue(encoder.encode(JSON.stringify({ 
+                      type: 'complete', 
+                      planFound: false,
+                      citations: data.message?.citations || []
+                    }) + '\n'));
                   }
-                  
-                  // Send complete message with workout plan
-                  controller.enqueue(encoder.encode(JSON.stringify({ 
-                    type: 'complete', 
-                    workoutPlan: workoutPlan,
-                    citations: data.message?.citations || []
-                  }) + '\n'));
                 }
               } catch (e) {
                 console.error('Error parsing SSE data:', e);

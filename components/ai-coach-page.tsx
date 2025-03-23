@@ -93,6 +93,78 @@ export default function CoachPage() {
     }
   }, [messages]);
 
+  // This function cleans JSON strings by removing JavaScript-style comments
+  function cleanJsonString(jsonString: string): string {
+    // Remove single-line comments (both // and # styles)
+    let cleaned = jsonString.replace(/\/\/.*?($|\n)/g, '');
+    cleaned = cleaned.replace(/#.*?($|\n)/g, '');
+    
+    // Remove multi-line comments
+    cleaned = cleaned.replace(/\/\*[\s\S]*?\*\//g, '');
+    
+    // Remove trailing commas before closing brackets/braces
+    cleaned = cleaned.replace(/,(\s*[\]}])/g, '$1');
+    
+    return cleaned;
+  }
+
+  const ExtractPlanButton = ({ messageContent, setWorkoutPlan, setConversationState, setProgress }: { 
+    messageContent: string,
+    setWorkoutPlan: React.Dispatch<React.SetStateAction<WorkoutPlan | null>>,
+    setConversationState: React.Dispatch<React.SetStateAction<'initial' | 'in-progress' | 'plan-ready'>>,
+    setProgress: React.Dispatch<React.SetStateAction<number>>
+  }) => {
+    const hasJsonBlock = /```json/.test(messageContent);
+    
+    if (!hasJsonBlock) return null;
+    
+    const handleExtract = () => {
+      const jsonMatch = messageContent.match(/```json\s*([\s\S]*?)\s*```/);
+      if (jsonMatch && jsonMatch[1]) {
+        try {
+          // Clean the JSON string before parsing
+          const cleanedJsonString = cleanJsonString(jsonMatch[1]);
+          const parsedJson = JSON.parse(cleanedJsonString);
+          
+          if (parsedJson.workoutPlan && Array.isArray(parsedJson.workoutPlan.workouts)) {
+            setWorkoutPlan(parsedJson.workoutPlan);
+            setConversationState('plan-ready');
+            setProgress(100);
+            
+            toast({
+              title: "Plan Extracted",
+              description: "Your workout plan has been successfully extracted and is ready to save.",
+            });
+          } else {
+            toast({
+              variant: "destructive",
+              title: "Invalid Plan Format",
+              description: "The JSON doesn't contain a valid workout plan structure.",
+            });
+          }
+        } catch (error) {
+          console.error('Error parsing JSON:', error);
+          toast({
+            variant: "destructive",
+            title: "JSON Parsing Error",
+            description: "There was an error processing the plan data.",
+          });
+        }
+      }
+    };
+    
+    return (
+      <Button 
+        onClick={handleExtract}
+        size="sm"
+        className="mt-2"
+      >
+        <Zap className="mr-2 h-4 w-4" />
+        Extract Workout Plan
+      </Button>
+    );
+  };
+
 // Handle sending a message to the AI coach
 const handleSendMessage = async () => {
   if (!input.trim() || isLoading) return;
@@ -150,6 +222,23 @@ const handleSendMessage = async () => {
                 role: 'assistant' as MessageRole,
                 content: accumulatedContent
               };
+              
+              // Check if this message contains a valid workout plan JSON
+              const jsonMatch = accumulatedContent.match(/```json\s*({[\s\S]*?})\s*```/);
+              if (jsonMatch && jsonMatch[1]) {
+                try {
+                  const parsedJson = JSON.parse(jsonMatch[1]);
+                  if (parsedJson.workoutPlan && Array.isArray(parsedJson.workoutPlan.workouts)) {
+                    // We found a workout plan!
+                    setWorkoutPlan(parsedJson.workoutPlan);
+                    setConversationState('plan-ready');
+                    setProgress(100);
+                  }
+                } catch (error) {
+                  console.error('Error parsing potential workout plan JSON:', error);
+                }
+              }
+              
               return newMessages;
             });
             
@@ -159,10 +248,48 @@ const handleSendMessage = async () => {
             }
           } else if (data.type === 'complete') {
             // When complete, check for workout plan
-            if (data.workoutPlan) {
+            if (data.planFound === true && data.workoutPlan) {
               setWorkoutPlan(data.workoutPlan);
               setConversationState('plan-ready');
               setProgress(100);
+              
+              toast({
+                title: "Training Plan Ready",
+                description: "Your personalized workout plan has been created and is ready to save.",
+              });
+            } else if (data.parseError && data.rawJsonString) {
+              // Try to clean and parse the JSON on the client side as a fallback
+              try {
+                const cleanedJsonString = cleanJsonString(data.rawJsonString);
+                const parsedJson = JSON.parse(cleanedJsonString);
+                
+                if (parsedJson.workoutPlan && Array.isArray(parsedJson.workoutPlan.workouts)) {
+                  setWorkoutPlan(parsedJson.workoutPlan);
+                  setConversationState('plan-ready');
+                  setProgress(100);
+                  
+                  toast({
+                    title: "Training Plan Ready",
+                    description: "Your workout plan was successfully recovered and is ready to save.",
+                  });
+                } else {
+                  throw new Error("Invalid workout plan structure");
+                }
+              } catch (error) {
+                console.error('Client-side JSON parsing also failed:', error);
+                toast({
+                  variant: "destructive",
+                  title: "Plan Formatting Issue",
+                  description: "There was a problem with the workout plan format. Try the 'Extract Workout Plan' button if available.",
+                });
+              }
+            } else if (data.parseError) {
+              console.error('JSON parsing error on server:', data.errorDetails);
+              toast({
+                variant: "destructive",
+                title: "Plan Formatting Issue",
+                description: "There was a problem with the workout plan format. Try the 'Extract Workout Plan' button if available.",
+              });
             }
             
             // Store citations if available
@@ -211,50 +338,56 @@ const handleSendMessage = async () => {
     }
   };
 
-  const saveWorkoutPlan = async () => {
-    if (!workoutPlan) return;
-    
-    setIsLoading(true);
-    try {
-      // Send the workout plan to the server to save in the database
-      const response = await fetch('/api/coach/save-plan', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          workoutPlan,
-          conversationId: null // You could generate and track conversation IDs if needed
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to save workout plan');
-      }
-
-      const data = await response.json();
-      
-      toast({
-        title: "Training Plan Saved!",
-        description: `${data.savedWorkouts} workouts have been added to your calendar.`,
-      });
-      
-      // Redirect to the calendar view after a short delay
-      setTimeout(() => {
-        router.push('/protected');
-      }, 1500);
-      
-    } catch (error) {
-      console.error('Error saving workout plan:', error);
-      toast({
-        variant: "destructive",
-        title: "Save Error",
-        description: "There was a problem saving your training plan. Please try again."
-      });
-    } finally {
-      setIsLoading(false);
+  // In the saveWorkoutPlan function
+const saveWorkoutPlan = async () => {
+  if (!workoutPlan) return;
+  
+  setIsLoading(true);
+  try {
+    // Check if there are any workouts before saving
+    if (!workoutPlan.workouts || workoutPlan.workouts.length === 0) {
+      throw new Error('No workouts found in the plan');
     }
-  };
+    
+    // Validate workouts before sending to API
+    const totalWorkouts = workoutPlan.workouts.length;
+    const validWorkouts = workoutPlan.workouts.filter(workout => 
+      workout && 
+      workout.title && 
+      workout.date && 
+      workout.type &&
+      ((workout.type === 'run' && workout.runType && workout.distance) ||
+       (workout.type === 'weightlifting' && workout.focusArea && workout.duration))
+    );
+    
+    if (validWorkouts.length === 0) {
+      throw new Error('No valid workouts found in the plan');
+    }
+    
+    if (validWorkouts.length < totalWorkouts) {
+      // Show warning but proceed with valid workouts
+      toast({
+        title: "Warning",
+        description: `Only ${validWorkouts.length} of ${totalWorkouts} workouts are valid and will be saved.`,
+        variant: "destructive",
+      });
+      
+      // Update the workout plan to only include valid workouts
+      setWorkoutPlan({
+        ...workoutPlan,
+        workouts: validWorkouts
+      });
+    }
+
+    const response = await fetch('/api/coach/save-plan', {
+      // existing fetch code...
+    });
+
+    // existing success handling...
+  } catch (error) {
+    // existing error handling...
+  }
+};
 
   const resetConversation = () => {
     setMessages([]);
@@ -466,9 +599,27 @@ const handleSendMessage = async () => {
                     )}
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Workouts:</span>
-                      <span className="font-medium">{workoutPlan.workouts.length}</span>
+                      <span className="font-medium">
+                        {workoutPlan.workouts.filter(w => 
+                          w && w.title && w.date && w.type && 
+                          ((w.type === 'run' && w.runType && w.distance !== undefined) || 
+                          (w.type === 'weightlifting' && w.focusArea && w.duration))
+                        ).length} valid / {workoutPlan.workouts.length} total
+                      </span>
                     </div>
                   </div>
+                  
+                  {/* Add warning if there are invalid workouts */}
+                  {workoutPlan.workouts.length > 
+                    workoutPlan.workouts.filter(w => 
+                      w && w.title && w.date && w.type && 
+                      ((w.type === 'run' && w.runType && w.distance !== undefined) || 
+                      (w.type === 'weightlifting' && w.focusArea && w.duration))
+                    ).length && (
+                    <div className="mt-3 p-2 bg-amber-100 dark:bg-amber-900/40 rounded-md text-xs text-amber-800 dark:text-amber-200">
+                      <p>Some workouts are missing required fields and won't be saved.</p>
+                    </div>
+                  )}
                 </CardContent>
                 <CardFooter>
                   <Button 

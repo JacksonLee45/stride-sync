@@ -2,6 +2,36 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 
+// Add TypeScript interfaces for the workout plan data
+interface RunWorkout {
+  title: string;
+  date: string;
+  type: 'run';
+  runType: string;
+  distance: number;
+  pace?: string;
+  notes?: string;
+}
+
+interface WeightliftingWorkout {
+  title: string;
+  date: string;
+  type: 'weightlifting';
+  focusArea: string;
+  duration: string;
+  notes?: string;
+}
+
+type Workout = RunWorkout | WeightliftingWorkout;
+
+interface WorkoutPlan {
+  planName: string;
+  planDescription: string;
+  targetRace?: string;
+  duration?: string;
+  workouts: Workout[];
+}
+
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
@@ -20,6 +50,50 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid workout plan' }, { status: 400 });
     }
     
+    console.log(`Received ${workoutPlan.workouts.length} workouts to save`);
+    
+    // Validate workouts before processing
+    const validWorkouts = workoutPlan.workouts.filter((workout: any) => {
+      // Basic validation for all workouts
+      const hasBasicFields = workout && 
+                            workout.title && 
+                            workout.date && 
+                            (workout.date.match(/^\d{4}-\d{2}-\d{2}$/)) && 
+                            workout.type && 
+                            (workout.type === 'run' || workout.type === 'weightlifting');
+      
+      if (!hasBasicFields) {
+        console.warn('Skipping workout with missing basic fields:', workout);
+        return false;
+      }
+      
+      // Type-specific validation
+      if (workout.type === 'run') {
+        const isValidRun = workout.runType && (workout.distance !== undefined);
+        if (!isValidRun) {
+          console.warn('Skipping run workout with missing run-specific fields:', workout);
+        }
+        return isValidRun;
+      } else if (workout.type === 'weightlifting') {
+        const isValidStrength = workout.focusArea && workout.duration;
+        if (!isValidStrength) {
+          console.warn('Skipping weightlifting workout with missing strength-specific fields:', workout);
+        }
+        return isValidStrength;
+      }
+      
+      return false;
+    });
+    
+    console.log(`After validation, saving ${validWorkouts.length} valid workouts`);
+    
+    if (validWorkouts.length === 0) {
+      return NextResponse.json({ 
+        error: 'No valid workouts found in plan',
+        totalReceived: workoutPlan.workouts.length 
+      }, { status: 400 });
+    }
+    
     // First, create a training plan record
     const { data: trainingPlan, error: planError } = await supabase
       .from('training_plans')
@@ -28,12 +102,14 @@ export async function POST(request: Request) {
         name: workoutPlan.planName,
         description: workoutPlan.planDescription,
         goal: workoutPlan.targetRace || 'General fitness',
-        start_date: workoutPlan.workouts[0]?.date || new Date().toISOString().split('T')[0],
-        end_date: workoutPlan.workouts[workoutPlan.workouts.length - 1]?.date || new Date().toISOString().split('T')[0],
+        start_date: validWorkouts[0]?.date || new Date().toISOString().split('T')[0],
+        end_date: validWorkouts[validWorkouts.length - 1]?.date || new Date().toISOString().split('T')[0],
         created_by: 'AI',
         metadata: {
           conversation_id: conversationId,
-          generated_at: new Date().toISOString()
+          generated_at: new Date().toISOString(),
+          total_workouts_received: workoutPlan.workouts.length,
+          valid_workouts_count: validWorkouts.length
         }
       })
       .select()
@@ -50,7 +126,7 @@ export async function POST(request: Request) {
     const workoutResults = [];
     
     // Create each workout
-    for (const workout of workoutPlan.workouts) {
+    for (const workout of validWorkouts) {
       try {
         // Create the base workout
         const workoutData = {
@@ -129,7 +205,7 @@ export async function POST(request: Request) {
         metadata: {
           ...trainingPlan.metadata,
           workouts_created: successfulWorkouts,
-          total_workouts: workoutPlan.workouts.length
+          workouts_attempted: validWorkouts.length
         }
       })
       .eq('id', trainingPlanId);
@@ -138,13 +214,14 @@ export async function POST(request: Request) {
       success: true,
       trainingPlanId,
       savedWorkouts: successfulWorkouts,
-      totalWorkouts: workoutPlan.workouts.length
+      totalWorkouts: workoutPlan.workouts.length,
+      validWorkouts: validWorkouts.length
     });
     
   } catch (err: any) {
     console.error('Error saving workout plan:', err);
     return NextResponse.json(
-      { error: 'Failed to save workout plan' },
+      { error: 'Failed to save workout plan', details: err.message },
       { status: 500 }
     );
   }
