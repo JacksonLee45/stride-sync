@@ -1,3 +1,4 @@
+// components/ai-coach-page.tsx - Updated to support citations
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -9,9 +10,9 @@ import {
   ArrowLeft, 
   Loader2, 
   Calendar, 
-  Upload, 
   Zap,
-  CheckCircle
+  CheckCircle,
+  BookOpen
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,12 @@ import {
   CardHeader, 
   CardTitle 
 } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "@/components/ui/use-toast";
 
@@ -33,6 +40,15 @@ type MessageRole = 'user' | 'assistant' | 'system';
 interface Message {
   role: MessageRole;
   content: string;
+}
+
+// Interface for citations that might be provided by Claude
+interface Citation {
+  start: number;
+  end: number;
+  text: string;
+  document_ids: string[];
+  document_titles?: string[];
 }
 
 interface WorkoutPlan {
@@ -50,10 +66,8 @@ export default function CoachPage() {
   const [conversationState, setConversationState] = useState<'initial' | 'in-progress' | 'plan-ready'>('initial');
   const [workoutPlan, setWorkoutPlan] = useState<WorkoutPlan | null>(null);
   const [progress, setProgress] = useState(0);
-  const [uploadedDocuments, setUploadedDocuments] = useState<File[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
+  const [citations, setCitations] = useState<Citation[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
   // Initialize the conversation when the component mounts
@@ -97,7 +111,6 @@ export default function CoachPage() {
         },
         body: JSON.stringify({
           messages: [...messages, userMessage],
-          documentIds: [], // We'll add document IDs here when we implement document upload
         }),
       });
 
@@ -109,6 +122,11 @@ export default function CoachPage() {
       
       // Add the AI's response to the conversation
       setMessages(prev => [...prev, { role: 'assistant', content: data.message }]);
+      
+      // Store citations if available
+      if (data.citations && Array.isArray(data.citations)) {
+        setCitations(data.citations);
+      }
       
       // Update progress based on conversation state
       if (progress < 90) {
@@ -144,55 +162,6 @@ export default function CoachPage() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
-    }
-  };
-
-  const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) return;
-    
-    setIsUploading(true);
-    
-    try {
-      const files = Array.from(e.target.files);
-      setUploadedDocuments(prev => [...prev, ...files]);
-      
-      // Upload files to the server
-      const formData = new FormData();
-      files.forEach(file => {
-        formData.append('files', file);
-      });
-      
-      const response = await fetch('/api/coach/documents', {
-        method: 'POST',
-        body: formData,
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to upload documents');
-      }
-      
-      const data = await response.json();
-      
-      toast({
-        title: "Documents Uploaded",
-        description: `${files.length} document(s) uploaded successfully. Coach will reference these in the conversation.`
-      });
-      
-    } catch (error) {
-      console.error('Error uploading documents:', error);
-      toast({
-        variant: "destructive",
-        title: "Upload Error",
-        description: "There was a problem uploading your documents. Please try again."
-      });
-      // Remove the failed uploads from the list
-      setUploadedDocuments(prev => prev.slice(0, prev.length - e.target.files!.length));
-    } finally {
-      setIsUploading(false);
-      // Reset the file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
     }
   };
 
@@ -241,18 +210,95 @@ export default function CoachPage() {
     }
   };
 
-  const triggerFileInput = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  };
-
   const resetConversation = () => {
     setMessages([]);
     setWorkoutPlan(null);
     setConversationState('initial');
     setProgress(0);
-    setUploadedDocuments([]);
+    setCitations([]);
+  };
+
+  const renderMessageWithCitations = (message: string, messageCitations: Citation[]) => {
+    if (!messageCitations || messageCitations.length === 0) {
+      return <p className="whitespace-pre-wrap">{message}</p>;
+    }
+
+    // Sort citations by their start position in descending order
+    // so we can replace from end to start without messing up indices
+    const sortedCitations = [...messageCitations].sort((a, b) => b.start - a.start);
+    
+    let parts = message;
+    
+    // Replace each citation with a highlighted version
+    sortedCitations.forEach((citation, index) => {
+      if (citation.start !== undefined && citation.end !== undefined) {
+        const prefix = parts.substring(0, citation.start);
+        const citedText = parts.substring(citation.start, citation.end);
+        const suffix = parts.substring(citation.end);
+        
+        // Create a unique key for this citation
+        const citationKey = `citation-${index}`;
+        
+        // Replace with JSX element (will be converted to string and handled below)
+        parts = `${prefix}<<${citationKey}>>${citedText}<</citation>>${suffix}`;
+      }
+    });
+    
+    // Convert string with placeholders to actual React elements
+    const elements: React.ReactNode[] = [];
+    let currentIndex = 0;
+    
+    sortedCitations.forEach((citation, index) => {
+      const citationKey = `citation-${index}`;
+      const startTag = `<<${citationKey}>>`;
+      const endTag = '<</citation>>';
+      
+      const startIndex = parts.indexOf(startTag, currentIndex);
+      if (startIndex === -1) return;
+      
+      // Add text before citation
+      if (startIndex > currentIndex) {
+        elements.push(parts.substring(currentIndex, startIndex));
+      }
+      
+      // Extract cited text
+      const contentStart = startIndex + startTag.length;
+      const contentEnd = parts.indexOf(endTag, contentStart);
+      const citedText = parts.substring(contentStart, contentEnd);
+      
+      // Get document titles if available
+      const docTitles = citation.document_titles?.join(', ') || 'Source document';
+      
+      // Add citation with tooltip
+      elements.push(
+        <TooltipProvider key={citationKey}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="bg-primary/10 px-1 py-0.5 rounded text-primary hover:bg-primary/20 cursor-help">
+                {citedText}
+                <sup className="ml-0.5">
+                  <BookOpen className="inline h-3 w-3" />
+                </sup>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">
+              <p className="text-xs font-medium">Citation</p>
+              <p className="text-xs">{docTitles}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+      
+      // Update current index
+      currentIndex = contentEnd + endTag.length;
+    });
+    
+    // Add any remaining text
+    if (currentIndex < parts.length) {
+      elements.push(parts.substring(currentIndex));
+    }
+    
+    return <p className="whitespace-pre-wrap">{elements}</p>;
   };
 
   return (
@@ -301,7 +347,10 @@ export default function CoachPage() {
                           : 'bg-muted'
                       }`}
                     >
-                      <p className="whitespace-pre-wrap">{message.content}</p>
+                      {message.role === 'assistant' 
+                        ? renderMessageWithCitations(message.content, citations)
+                        : <p className="whitespace-pre-wrap">{message.content}</p>
+                      }
                     </div>
                   </div>
                 ))}
@@ -320,19 +369,6 @@ export default function CoachPage() {
               
               <CardFooter className="border-t pt-4">
                 <div className="flex items-center gap-2 w-full">
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    onClick={triggerFileInput}
-                    disabled={isUploading || conversationState === 'plan-ready'}
-                    title="Upload running resources for Coach to reference"
-                  >
-                    {isUploading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Upload className="h-4 w-4" />
-                    )}
-                  </Button>
                   <Input
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
@@ -348,21 +384,12 @@ export default function CoachPage() {
                   >
                     <SendHorizonal className="h-4 w-4" />
                   </Button>
-                  {/* Hidden file input */}
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleDocumentUpload}
-                    accept=".pdf,.txt,.md,.docx"
-                    multiple
-                    className="hidden"
-                  />
                 </div>
               </CardFooter>
             </Card>
           </div>
           
-          {/* Side panel for plan details and uploaded documents - takes 1/3 of space */}
+          {/* Side panel for plan details and documents - takes 1/3 of space */}
           <div className="lg:col-span-1">
             {/* Plan details card - only shown when plan is ready */}
             {conversationState === 'plan-ready' && workoutPlan && (
@@ -419,52 +446,32 @@ export default function CoachPage() {
               </Card>
             )}
             
-            {/* Uploaded documents card */}
+            {/* Information about document knowledge */}
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle>Training Resources</CardTitle>
+                <CardTitle>About Coach Claude</CardTitle>
                 <CardDescription>
-                  Upload training documents for Coach to reference
+                  Powered by expert running knowledge
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {uploadedDocuments.length > 0 ? (
-                  <ul className="space-y-2">
-                    {uploadedDocuments.map((doc, index) => (
-                      <li key={index} className="flex items-center gap-2 text-sm">
-                        <div className="h-2 w-2 rounded-full bg-primary"></div>
-                        <span className="truncate flex-1" title={doc.name}>
-                          {doc.name}
-                        </span>
-                        <span className="text-muted-foreground text-xs">
-                          {(doc.size / 1024).toFixed(0)} KB
-                        </span>
-                      </li>
-                    ))}
+                <div className="text-sm text-muted-foreground space-y-3">
+                  <p>
+                    Coach Claude has been trained on a curated collection of running and training documents, including:
+                  </p>
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li>Advanced Marathon Training Methods</li>
+                    <li>Science of Running: Economy and Form</li>
+                    <li>Injury Prevention for Distance Runners</li>
+                    <li>5K/10K Training Methodology</li>
+                    <li>Periodization for Endurance Athletes</li>
                   </ul>
-                ) : (
-                  <div className="text-center py-6 text-muted-foreground">
-                    <p className="text-sm mb-2">No documents uploaded yet</p>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={triggerFileInput}
-                      disabled={isUploading}
-                    >
-                      {isUploading ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Upload className="mr-2 h-4 w-4" />
-                      )}
-                      Upload
-                    </Button>
-                  </div>
-                )}
+                  <p>
+                    The coach will automatically reference relevant information from these resources to create your personalized training plan.
+                  </p>
+                </div>
               </CardContent>
-              <CardFooter className="flex-col items-start space-y-2 pt-0">
-                <p className="text-xs text-muted-foreground">
-                  Upload PDFs of training books, research papers, or coaching guides to help Coach create better plans.
-                </p>
+              <CardFooter className="pt-0">
                 {conversationState !== 'initial' && (
                   <Button 
                     variant="ghost" 

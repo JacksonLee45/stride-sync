@@ -1,15 +1,8 @@
-// app/api/coach/route.ts - Fixed version
+// app/api/coach/route.ts - Implemented with Claude Web API and Knowledge Retrieval
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
-import Anthropic from '@anthropic-ai/sdk';
 
-// Initialize Anthropic client
-// Note: You'll need to install the package: npm install @anthropic-ai/sdk
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!,
-});
-
-// Define system prompt to instruct Claude on how to be a running coach
+// Base system prompt - now we don't need to include document content
 const BASE_SYSTEM_PROMPT = `You are Coach Claude, an expert running coach with deep knowledge of exercise physiology, training methodology, and race preparation.
 
 Your goal is to create personalized training plans for runners. Follow this approach:
@@ -78,41 +71,8 @@ For strength workouts, include the focus area and duration.
 
 Start the conversation by asking about their running goals. During the conversation, be friendly, encouraging, and demonstrate your expertise as a running coach.`;
 
-// Function to enhance system prompt with document content
-async function getEnhancedSystemPrompt(documentIds: string[]) {
-  // If no documents, return base prompt
-  if (!documentIds || documentIds.length === 0) {
-    return BASE_SYSTEM_PROMPT;
-  }
-  
-  try {
-    const supabase = await createClient();
-    
-    // Fetch document content from database
-    const { data: documents, error } = await supabase
-      .from('coach_documents')
-      .select('content, title, type')
-      .in('id', documentIds);
-    
-    if (error || !documents || documents.length === 0) {
-      console.error('Error fetching documents:', error);
-      return BASE_SYSTEM_PROMPT;
-    }
-    
-    // Create enhanced prompt with document content
-    let documentContext = "Use the following training resources to inform your recommendations:\n\n";
-    
-    documents.forEach((doc, index) => {
-      documentContext += `DOCUMENT ${index + 1}: ${doc.title} (${doc.type})\n`;
-      documentContext += `${doc.content.substring(0, 3000)}...\n\n`; // Limit size
-    });
-    
-    return `${BASE_SYSTEM_PROMPT}\n\n${documentContext}`;
-  } catch (err) {
-    console.error('Error enhancing prompt with documents:', err);
-    return BASE_SYSTEM_PROMPT;
-  }
-}
+// Collection ID from Anthropic Console
+// const KNOWLEDGE_COLLECTION_ID = process.env.ANTHROPIC_COLLECTION_ID || 'YOUR_COLLECTION_ID_HERE';
 
 // Function to analyze conversation and update user profile
 async function updateUserTrainingProfile(userId: string, messages: any[]) {
@@ -122,31 +82,45 @@ async function updateUserTrainingProfile(userId: string, messages: any[]) {
     // Extract key training information from the conversation
     const userMessages = messages.filter(m => m.role === 'user').map(m => m.content).join(" ");
     
-    // Use Claude to analyze the conversation
-    const analysis = await anthropic.messages.create({
-      model: "claude-3-haiku-20240307",
-      max_tokens: 1000,
-      system: `You're an exercise physiologist analyzing a conversation between a runner and coach. 
-      Extract key training information:
-      1. Runner's experience level
-      2. Weekly mileage
-      3. Target race distance
-      4. Training pace information
-      5. Injury history
-      
-      Output as JSON with these fields. If information is not available, mark as null.`,
-      messages: [
-        {
-          role: "user",
-          content: `Here is a conversation with a runner. Extract key training information: ${userMessages}`
-        }
-      ]
+    // Use Claude to analyze the conversation - using fetch directly to analyze
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY!,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: "claude-3-haiku-20240307",
+        max_tokens: 1000,
+        system: `You're an exercise physiologist analyzing a conversation between a runner and coach. 
+        Extract key training information:
+        1. Runner's experience level
+        2. Weekly mileage
+        3. Target race distance
+        4. Training pace information
+        5. Injury history
+        
+        Output as JSON with these fields. If information is not available, mark as null.`,
+        messages: [
+          {
+            role: "user",
+            content: `Here is a conversation with a runner. Extract key training information: ${userMessages}`
+          }
+        ]
+      })
     });
     
-    // Parse the analysis - properly handle the content blocks
-    const analysisText = analysis.content
-      .filter(block => block.type === 'text')
-      .map(block => (block.type === 'text' ? block.text : ''))
+    if (!response.ok) {
+      throw new Error('Failed to analyze conversation');
+    }
+    
+    const data = await response.json();
+    
+    // Get the response text
+    const analysisText = data.content
+      .filter((block: any) => block.type === 'text')
+      .map((block: any) => (block.type === 'text' ? block.text : ''))
       .join('');
     
     const jsonMatch = analysisText.match(/```json\s*([\s\S]*?)\s*```/);
@@ -211,10 +185,7 @@ export async function POST(request: Request) {
     }
     
     // Get request body
-    const { messages, documentIds } = await request.json();
-    
-    // Get enhanced system prompt with document content
-    const systemPrompt = await getEnhancedSystemPrompt(documentIds || []);
+    const { messages } = await request.json();
     
     // Prepare messages for Claude
     const claudeMessages = messages.map((msg: any) => ({
@@ -222,18 +193,33 @@ export async function POST(request: Request) {
       content: msg.content
     }));
     
-    // Call Claude
-    const completion = await anthropic.messages.create({
-      model: "claude-3-opus-20240229", // Use the most capable model for high-quality coaching
-      max_tokens: 4000,
-      system: systemPrompt,
-      messages: claudeMessages
+    // Call Claude using fetch to access Web API features
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY!,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: "claude-3-opus-20240229", // Use the most capable model for high-quality coaching
+        max_tokens: 4000,
+        system: BASE_SYSTEM_PROMPT,
+        messages: claudeMessages
+      })
     });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Claude API error: ${errorData.error?.message || 'Unknown error'}`);
+    }
+    
+    const completion = await response.json();
     
     // Get Claude's response - properly handle the content blocks
     const aiResponse = completion.content
-      .filter(block => block.type === 'text')
-      .map(block => (block.type === 'text' ? block.text : ''))
+      .filter((block: any) => block.type === 'text')
+      .map((block: any) => (block.type === 'text' ? block.text : ''))
       .join('');
     
     // If this is a substantial conversation, update the user's training profile
@@ -260,7 +246,8 @@ export async function POST(request: Request) {
         
         return NextResponse.json({
           message: cleanResponse,
-          workoutPlan: workoutPlan
+          workoutPlan: workoutPlan,
+          citations: completion.citations || []
         });
       } catch (error) {
         console.error('Error parsing workout plan JSON:', error);
@@ -272,7 +259,8 @@ export async function POST(request: Request) {
     saveConversation(user.id, [...messages, { role: 'assistant', content: aiResponse }], null);
     
     return NextResponse.json({
-      message: aiResponse
+      message: aiResponse,
+      citations: completion.citations || []
     });
     
   } catch (err: any) {
