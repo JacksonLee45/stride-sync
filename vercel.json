@@ -1,6 +1,10 @@
 {
+    "version": 2,
     "functions": {
-      "api/coach/route.ts": {
+      "app/api/coach/route.ts": {
+        "maxDuration": 60
+      },
+      "app/api/coach/save-plan/route.ts": {
         "maxDuration": 60
       }
     }
