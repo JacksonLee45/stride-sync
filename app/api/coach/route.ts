@@ -173,101 +173,120 @@ async function saveConversation(userId: string, messages: any[], workoutPlan: an
   }
 }
 
+// app/api/coach/route.ts - Updated for streaming
 export async function POST(request: Request) {
-  try {
-    const supabase = await createClient();
-    
-    // Get the current user for security check
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError || !user) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-    
-    // Get request body
-    const { messages } = await request.json();
-    
-    // Prepare messages for Claude
-    const claudeMessages = messages.map((msg: any) => ({
-      role: msg.role,
-      content: msg.content
-    }));
-    
-    // Call Claude using fetch to access Web API features
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY!,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: "claude-3-opus-20240229", // Use the most capable model for high-quality coaching
-        max_tokens: 4000,
-        system: BASE_SYSTEM_PROMPT,
-        messages: claudeMessages
-      })
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`Claude API error: ${errorData.error?.message || 'Unknown error'}`);
-    }
-    
-    const completion = await response.json();
-    
-    // Get Claude's response - properly handle the content blocks
-    const aiResponse = completion.content
-      .filter((block: any) => block.type === 'text')
-      .map((block: any) => (block.type === 'text' ? block.text : ''))
-      .join('');
-    
-    // If this is a substantial conversation, update the user's training profile
-    if (messages.length > 3) {
-      updateUserTrainingProfile(user.id, [...messages, { role: 'assistant', content: aiResponse }]);
-    }
-    
-    // Check if the response contains a workout plan JSON
-    let workoutPlan = null;
-    const jsonMatch = aiResponse.match(/```json\s*({[\s\S]*?})\s*```/);
-    
-    if (jsonMatch && jsonMatch[1]) {
+  const supabase = await createClient();
+  
+  // Authentication check...
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  
+  const { messages } = await request.json();
+  
+  // Create a streaming response
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
       try {
-        const parsedJson = JSON.parse(jsonMatch[1]);
-        workoutPlan = parsedJson.workoutPlan;
-        
-        // Clean up the AI response to remove the JSON block
-        const cleanResponse = aiResponse
-          .replace(/```json\s*{[\s\S]*?}\s*```/, '')
-          .trim();
-        
-        // Save the conversation with the workout plan
-        saveConversation(user.id, [...messages, { role: 'assistant', content: cleanResponse }], workoutPlan);
-        
-        return NextResponse.json({
-          message: cleanResponse,
-          workoutPlan: workoutPlan,
-          citations: completion.citations || []
+        // Create Anthropic fetch request with stream: true
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': process.env.ANTHROPIC_API_KEY!,
+            'anthropic-version': '2023-06-01'
+          },
+          body: JSON.stringify({
+            model: "claude-3-opus-20240229",
+            max_tokens: 4000,
+            system: BASE_SYSTEM_PROMPT,
+            messages: messages,
+            stream: true
+          })
         });
+        
+        if (!response.ok) throw new Error(`API error: ${response.status}`);
+        if (!response.body) throw new Error('Response body is null');
+        
+        const reader = response.body.getReader();
+        let fullText = '';
+        let workoutPlan = null;
+        
+        // Process the stream chunks
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          // Parse the SSE data
+          const chunk = new TextDecoder().decode(value);
+          const lines = chunk.split('\n');
+          
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(5));
+                
+                if (data.type === 'content_block_delta' && data.delta.type === 'text_delta') {
+                  const textChunk = data.delta.text;
+                  fullText += textChunk;
+                  
+                  // Send text chunk to client
+                  controller.enqueue(encoder.encode(JSON.stringify({ 
+                    type: 'chunk', 
+                    content: textChunk 
+                  }) + '\n'));
+                } else if (data.type === 'message_stop') {
+                  // Message is complete - check for workout plan in the content
+                  const jsonMatch = fullText.match(/```json\s*({[\s\S]*?})\s*```/);
+                  if (jsonMatch && jsonMatch[1]) {
+                    try {
+                      const parsedJson = JSON.parse(jsonMatch[1]);
+                      workoutPlan = parsedJson.workoutPlan;
+                    } catch (error) {
+                      console.error('Error parsing workout plan JSON:', error);
+                    }
+                  }
+                  
+                  // Send complete message with workout plan
+                  controller.enqueue(encoder.encode(JSON.stringify({ 
+                    type: 'complete', 
+                    workoutPlan: workoutPlan,
+                    citations: data.message?.citations || []
+                  }) + '\n'));
+                }
+              } catch (e) {
+                console.error('Error parsing SSE data:', e);
+              }
+            }
+          }
+        }
+        
+        // Save conversation after completion
+        const finalMessage = { role: 'assistant', content: fullText };
+        saveConversation(user.id, [...messages, finalMessage], workoutPlan);
+        
+        // If we should update user profile...
+        if (messages.length > 3) {
+          updateUserTrainingProfile(user.id, [...messages, finalMessage]);
+        }
+        
       } catch (error) {
-        console.error('Error parsing workout plan JSON:', error);
+        console.error('Streaming error:', error);
+        controller.enqueue(encoder.encode(JSON.stringify({ 
+          type: 'error', 
+          error: error instanceof Error ? error.message : 'Unknown error' 
+        }) + '\n'));
+      } finally {
+        controller.close();
       }
     }
-    
-    // If no plan was found or parsed, just return the message
-    // Still save the conversation for future analysis
-    saveConversation(user.id, [...messages, { role: 'assistant', content: aiResponse }], null);
-    
-    return NextResponse.json({
-      message: aiResponse,
-      citations: completion.citations || []
-    });
-    
-  } catch (err: any) {
-    console.error('Error in AI coach API:', err);
-    return NextResponse.json(
-      { error: 'Failed to process your request: ' + (err.message || 'Unknown error') },
-      { status: 500 }
-    );
-  }
+  });
+  
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive'
+    }
+  });
 }

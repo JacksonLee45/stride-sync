@@ -93,70 +93,115 @@ export default function CoachPage() {
     }
   }, [messages]);
 
-  const handleSendMessage = async () => {
-    if (!input.trim() || isLoading) return;
+  // Update components/ai-coach-page.tsx
+const handleSendMessage = async () => {
+  if (!input.trim() || isLoading) return;
 
-    // Add user message to the conversation
-    const userMessage: Message = { role: 'user', content: input };
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
-    setIsLoading(true);
+  // Add user message to the conversation
+  const userMessage = { role: 'user', content: input };
+  setMessages(prev => [...prev, userMessage]);
+  setInput('');
+  setIsLoading(true);
+  
+  // Add a placeholder for the assistant's response
+  setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
 
-    try {
-      // Send the conversation history to the AI coach API
-      const response = await fetch('/api/coach', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messages: [...messages, userMessage],
-        }),
-      });
+  try {
+    // Send the conversation history to the AI coach API
+    const response = await fetch('/api/coach', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messages: [...messages, userMessage],
+      }),
+    });
 
-      if (!response.ok) {
-        throw new Error('Failed to get response from Coach');
-      }
-
-      const data = await response.json();
-      
-      // Add the AI's response to the conversation
-      setMessages(prev => [...prev, { role: 'assistant', content: data.message }]);
-      
-      // Store citations if available
-      if (data.citations && Array.isArray(data.citations)) {
-        setCitations(data.citations);
-      }
-      
-      // Update progress based on conversation state
-      if (progress < 90) {
-        setProgress(prev => Math.min(prev + 20, 90));
-      }
-      
-      // Check if the AI has generated a training plan
-      if (data.workoutPlan) {
-        setWorkoutPlan(data.workoutPlan);
-        setConversationState('plan-ready');
-        setProgress(100);
-      }
-    } catch (error) {
-      console.error('Error communicating with Coach:', error);
-      setMessages(prev => [
-        ...prev, 
-        { 
-          role: 'assistant', 
-          content: "I'm sorry, I encountered an error while processing your request. Please try again."
-        }
-      ]);
-      toast({
-        variant: "destructive",
-        title: "Communication Error",
-        description: "There was a problem connecting with Coach. Please try again."
-      });
-    } finally {
-      setIsLoading(false);
+    if (!response.ok) {
+      throw new Error('Failed to get response from Coach');
     }
-  };
+
+    // Process the streaming response
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('Response body is null');
+
+    let accumulatedContent = '';
+    
+    // Read and process each chunk
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      
+      const chunk = new TextDecoder().decode(value);
+      const lines = chunk.split('\n').filter(line => line.trim());
+      
+      for (const line of lines) {
+        try {
+          const data = JSON.parse(line);
+          
+          if (data.type === 'chunk') {
+            // Update the current assistant message with new text
+            accumulatedContent += data.content;
+            setMessages(prev => {
+              const newMessages = [...prev];
+              newMessages[newMessages.length - 1] = {
+                role: 'assistant',
+                content: accumulatedContent
+              };
+              return newMessages;
+            });
+            
+            // Auto-scroll to bottom
+            if (messagesEndRef.current) {
+              messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+            }
+          } else if (data.type === 'complete') {
+            // When complete, check for workout plan
+            if (data.workoutPlan) {
+              setWorkoutPlan(data.workoutPlan);
+              setConversationState('plan-ready');
+              setProgress(100);
+            }
+            
+            // Store citations if available
+            if (data.citations && Array.isArray(data.citations)) {
+              setCitations(data.citations);
+            }
+            
+            // Update progress based on conversation state
+            if (progress < 90) {
+              setProgress(prev => Math.min(prev + 20, 90));
+            }
+          } else if (data.type === 'error') {
+            throw new Error(data.error);
+          }
+        } catch (e) {
+          console.error('Error parsing stream chunk:', e);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error communicating with Coach:', error);
+    setMessages(prev => {
+      // Replace the last message with an error message
+      const newMessages = [...prev];
+      newMessages[newMessages.length - 1] = { 
+        role: 'assistant', 
+        content: "I'm sorry, I encountered an error while processing your request. Please try again."
+      };
+      return newMessages;
+    });
+    
+    toast({
+      variant: "destructive",
+      title: "Communication Error",
+      description: "There was a problem connecting with Coach. Please try again."
+    });
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
