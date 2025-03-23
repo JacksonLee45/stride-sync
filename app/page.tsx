@@ -5,9 +5,9 @@ import { ArrowRight, Calendar, BarChart2, Award, CheckCircle, Users } from 'luci
 
 const LandingPage = () => {
   return (
-    <div className="flex flex-col w-full">
+    <div className="flex flex-col w-full max-w-7xl mx-auto">
       {/* Hero Section */}
-      <section className="flex flex-col md:flex-row items-center justify-between py-6 md:py-12">
+      <section className="flex flex-col md:flex-row items-center justify-between py-6 md:py-12 px-4 md:px-8">
         <div className="flex flex-col space-y-6 md:w-1/2 mb-10 md:mb-0">
           <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
             Take Control of Your <span className="text-primary">Training Journey</span>
@@ -17,11 +17,11 @@ const LandingPage = () => {
             StrideSync helps athletes of all levels stay on pace with their goals.
           </p>
           <div className="flex gap-4 pt-4">
-          <Button size="lg" asChild className="gap-2">
-            <Link href="/sign-up">
-                Get Started <ArrowRight size={16} />
-            </Link>
-          </Button>
+            <Button size="lg" asChild className="gap-2">
+              <Link href="/sign-up">
+                  Get Started <ArrowRight size={16} />
+              </Link>
+            </Button>
             <Button size="lg" variant="outline">
               Learn More
             </Button>
@@ -87,7 +87,7 @@ const LandingPage = () => {
       
       {/* Features Section */}
       <section className="py-20 bg-muted/50">
-        <div className="container px-4 mx-auto">
+        <div className="container px-6 md:px-8 mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold mb-4">Why Athletes Choose StrideSync</h2>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
@@ -132,7 +132,7 @@ const LandingPage = () => {
       
       {/* How It Works Section */}
       <section className="py-20">
-        <div className="container px-4 mx-auto">
+        <div className="container px-6 md:px-8 mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold mb-4">How StrideSync Works</h2>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
@@ -176,7 +176,7 @@ const LandingPage = () => {
       
       {/* Testimonials (Placeholder) */}
       <section className="py-20 bg-muted/50">
-        <div className="container px-4 mx-auto">
+        <div className="container px-6 md:px-8 mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold mb-4">Athletes Love StrideSync</h2>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
@@ -216,7 +216,7 @@ const LandingPage = () => {
       
       {/* CTA Section */}
       <section className="py-20 bg-primary/5">
-        <div className="container px-4 mx-auto text-center">
+        <div className="container px-6 md:px-8 mx-auto text-center">
           <h2 className="text-3xl font-bold mb-6">Ready to Elevate Your Training?</h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
             Join StrideSync today and start tracking your workouts with precision.

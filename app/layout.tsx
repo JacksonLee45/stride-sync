@@ -6,6 +6,7 @@ import Link from "next/link";
 import "./globals.css";
 import SupabaseLogo from "@/components/supabase-logo";
 import { Toaster } from "@/components/ui/toaster";
+import { Activity } from "lucide-react";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -40,8 +41,11 @@ export default function RootLayout({
             <div className="flex-1 w-full flex flex-col gap-5 items-center">
               <nav className="w-full flex justify-center border-b border-b-foreground/10 h-16">
                 <div className="w-full max-w-5xl flex justify-between items-center p-3 px-5 text-sm">
-                  <div className="flex gap-5 items-center font-semibold">
-                    <Link href={"/"}>StrideSync</Link>
+                  <div className="flex gap-5 items-center">
+                    <Link href={"/"} className="flex items-center gap-2">
+                      <Activity className="h-5 w-5 text-primary" />
+                      <span className="text-lg font-bold text-primary">StrideSync</span>
+                    </Link>
                   </div>
                   <HeaderAuth />
                 </div>
