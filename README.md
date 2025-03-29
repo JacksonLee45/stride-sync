@@ -2,7 +2,7 @@
 
 StrideSync is a comprehensive workout tracking platform designed to help runners and fitness enthusiasts plan, track, and analyze their training. The application features an AI coach powered by Claude, personalized training plans, and detailed performance analytics.
 
-![StrideSync App](https://example.com/stridesync-screenshot.png)
+Deployed here! https://stride-sync.vercel.app/
 
 ## Features
 
