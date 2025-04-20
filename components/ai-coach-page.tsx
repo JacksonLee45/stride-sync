@@ -1,4 +1,4 @@
-// components/ai-coach-page.tsx - Updated to support citations
+// components/ai-coach-page.tsx - Updated with RAG citation support
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -51,6 +51,13 @@ interface Citation {
   document_titles?: string[];
 }
 
+// Interface for source information
+interface SourceInfo {
+  title: string;
+  authors: string[];
+  similarity: number;
+}
+
 interface WorkoutPlan {
   workouts: any[];
   planName: string;
@@ -67,6 +74,7 @@ export default function CoachPage() {
   const [workoutPlan, setWorkoutPlan] = useState<WorkoutPlan | null>(null);
   const [progress, setProgress] = useState(0);
   const [citations, setCitations] = useState<Citation[]>([]);
+  const [sources, setSources] = useState<SourceInfo[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
@@ -165,171 +173,181 @@ export default function CoachPage() {
     );
   };
 
-// Handle sending a message to the AI coach
-const handleSendMessage = async () => {
-  if (!input.trim() || isLoading) return;
+  // Handle sending a message to the AI coach
+  const handleSendMessage = async () => {
+    if (!input.trim() || isLoading) return;
 
-  // Add user message to the conversation
-  const userMessage = { role: 'user' as MessageRole, content: input };
-  setMessages(prev => [...prev, userMessage]);
-  setInput('');
-  setIsLoading(true);
-  
-  // Add a placeholder for the assistant's response
-  setMessages(prev => [...prev, { role: 'assistant' as MessageRole, content: '' }]);
-
-  try {
-    // Send the conversation history to the AI coach API
-    const response = await fetch('/api/coach', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        messages: [...messages, userMessage],
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to get response from Coach');
-    }
-
-    // Process the streaming response
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error('Response body is null');
-
-    // Initialize accumulated content
-    let accumulatedContent = '';
+    // Add user message to the conversation
+    const userMessage = { role: 'user' as MessageRole, content: input };
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    setIsLoading(true);
     
-    // Read and process each chunk
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+    // Add a placeholder for the assistant's response
+    setMessages(prev => [...prev, { role: 'assistant' as MessageRole, content: '' }]);
+
+    try {
+      // Send the conversation history to the AI coach API
+      const response = await fetch('/api/coach', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: [...messages, userMessage],
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get response from Coach');
+      }
+
+      // Process the streaming response
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('Response body is null');
+
+      // Initialize accumulated content
+      let accumulatedContent = '';
       
-      const chunk = new TextDecoder().decode(value);
-      const lines = chunk.split('\n').filter(line => line.trim());
-      
-      for (const line of lines) {
-        try {
-          const data = JSON.parse(line);
-          
-          if (data.type === 'chunk') {
-            // Update the current assistant message with new text
-            accumulatedContent += data.content;
-            setMessages(prev => {
-              const newMessages = [...prev];
-              newMessages[newMessages.length - 1] = {
-                role: 'assistant' as MessageRole,
-                content: accumulatedContent
-              };
+      // Read and process each chunk
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const chunk = new TextDecoder().decode(value);
+        const lines = chunk.split('\n').filter(line => line.trim());
+        
+        for (const line of lines) {
+          try {
+            const data = JSON.parse(line);
+            
+            if (data.type === 'chunk') {
+              // Update the current assistant message with new text
+              accumulatedContent += data.content;
+              setMessages(prev => {
+                const newMessages = [...prev];
+                newMessages[newMessages.length - 1] = {
+                  role: 'assistant' as MessageRole,
+                  content: accumulatedContent
+                };
+                
+                // Check if this message contains a valid workout plan JSON
+                const jsonMatch = accumulatedContent.match(/```json\s*({[\s\S]*?})\s*```/);
+                if (jsonMatch && jsonMatch[1]) {
+                  try {
+                    const parsedJson = JSON.parse(jsonMatch[1]);
+                    if (parsedJson.workoutPlan && Array.isArray(parsedJson.workoutPlan.workouts)) {
+                      // We found a workout plan!
+                      setWorkoutPlan(parsedJson.workoutPlan);
+                      setConversationState('plan-ready');
+                      setProgress(100);
+                    }
+                  } catch (error) {
+                    console.error('Error parsing potential workout plan JSON:', error);
+                  }
+                }
+                
+                return newMessages;
+              });
               
-              // Check if this message contains a valid workout plan JSON
-              const jsonMatch = accumulatedContent.match(/```json\s*({[\s\S]*?})\s*```/);
-              if (jsonMatch && jsonMatch[1]) {
+              // Auto-scroll to bottom
+              if (messagesEndRef.current) {
+                messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+              }
+            } else if (data.type === 'complete') {
+              // When complete, check for workout plan
+              if (data.planFound === true && data.workoutPlan) {
+                setWorkoutPlan(data.workoutPlan);
+                setConversationState('plan-ready');
+                setProgress(100);
+                
+                // Store the sources if available
+                if (data.sources && Array.isArray(data.sources)) {
+                  setSources(data.sources);
+                }
+                
+                toast({
+                  title: "Training Plan Ready",
+                  description: "Your personalized workout plan has been created and is ready to save.",
+                });
+              } else if (data.parseError && data.rawJsonString) {
+                // Try to clean and parse the JSON on the client side as a fallback
                 try {
-                  const parsedJson = JSON.parse(jsonMatch[1]);
+                  const cleanedJsonString = cleanJsonString(data.rawJsonString);
+                  const parsedJson = JSON.parse(cleanedJsonString);
+                  
                   if (parsedJson.workoutPlan && Array.isArray(parsedJson.workoutPlan.workouts)) {
-                    // We found a workout plan!
                     setWorkoutPlan(parsedJson.workoutPlan);
                     setConversationState('plan-ready');
                     setProgress(100);
+                    
+                    toast({
+                      title: "Training Plan Ready",
+                      description: "Your workout plan was successfully recovered and is ready to save.",
+                    });
+                  } else {
+                    throw new Error("Invalid workout plan structure");
                   }
                 } catch (error) {
-                  console.error('Error parsing potential workout plan JSON:', error);
-                }
-              }
-              
-              return newMessages;
-            });
-            
-            // Auto-scroll to bottom
-            if (messagesEndRef.current) {
-              messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-            }
-          } else if (data.type === 'complete') {
-            // When complete, check for workout plan
-            if (data.planFound === true && data.workoutPlan) {
-              setWorkoutPlan(data.workoutPlan);
-              setConversationState('plan-ready');
-              setProgress(100);
-              
-              toast({
-                title: "Training Plan Ready",
-                description: "Your personalized workout plan has been created and is ready to save.",
-              });
-            } else if (data.parseError && data.rawJsonString) {
-              // Try to clean and parse the JSON on the client side as a fallback
-              try {
-                const cleanedJsonString = cleanJsonString(data.rawJsonString);
-                const parsedJson = JSON.parse(cleanedJsonString);
-                
-                if (parsedJson.workoutPlan && Array.isArray(parsedJson.workoutPlan.workouts)) {
-                  setWorkoutPlan(parsedJson.workoutPlan);
-                  setConversationState('plan-ready');
-                  setProgress(100);
-                  
+                  console.error('Client-side JSON parsing also failed:', error);
                   toast({
-                    title: "Training Plan Ready",
-                    description: "Your workout plan was successfully recovered and is ready to save.",
+                    variant: "destructive",
+                    title: "Plan Formatting Issue",
+                    description: "There was a problem with the workout plan format. Try the 'Extract Workout Plan' button if available.",
                   });
-                } else {
-                  throw new Error("Invalid workout plan structure");
                 }
-              } catch (error) {
-                console.error('Client-side JSON parsing also failed:', error);
+              } else if (data.parseError) {
+                console.error('JSON parsing error on server:', data.errorDetails);
                 toast({
                   variant: "destructive",
                   title: "Plan Formatting Issue",
                   description: "There was a problem with the workout plan format. Try the 'Extract Workout Plan' button if available.",
                 });
               }
-            } else if (data.parseError) {
-              console.error('JSON parsing error on server:', data.errorDetails);
-              toast({
-                variant: "destructive",
-                title: "Plan Formatting Issue",
-                description: "There was a problem with the workout plan format. Try the 'Extract Workout Plan' button if available.",
-              });
+              
+              // Store citations if available
+              if (data.citations && Array.isArray(data.citations)) {
+                setCitations(data.citations);
+              }
+              
+              // Store sources if available
+              if (data.sources && Array.isArray(data.sources)) {
+                setSources(data.sources);
+              }
+              
+              // Update progress based on conversation state
+              if (progress < 90) {
+                setProgress(prev => Math.min(prev + 20, 90));
+              }
+            } else if (data.type === 'error') {
+              throw new Error(data.error);
             }
-            
-            // Store citations if available
-            if (data.citations && Array.isArray(data.citations)) {
-              setCitations(data.citations);
-            }
-            
-            // Update progress based on conversation state
-            if (progress < 90) {
-              setProgress(prev => Math.min(prev + 20, 90));
-            }
-          } else if (data.type === 'error') {
-            throw new Error(data.error);
+          } catch (e) {
+            console.error('Error parsing stream chunk:', e);
           }
-        } catch (e) {
-          console.error('Error parsing stream chunk:', e);
         }
       }
+    } catch (error) {
+      console.error('Error communicating with Coach:', error);
+      setMessages(prev => {
+        // Replace the last message with an error message
+        const newMessages = [...prev];
+        newMessages[newMessages.length - 1] = { 
+          role: 'assistant' as MessageRole, 
+          content: "I'm sorry, I encountered an error while processing your request. Please try again."
+        };
+        return newMessages;
+      });
+      
+      toast({
+        variant: "destructive",
+        title: "Communication Error",
+        description: "There was a problem connecting with Coach. Please try again."
+      });
+    } finally {
+      setIsLoading(false);
     }
-  } catch (error) {
-    console.error('Error communicating with Coach:', error);
-    setMessages(prev => {
-      // Replace the last message with an error message
-      const newMessages = [...prev];
-      newMessages[newMessages.length - 1] = { 
-        role: 'assistant' as MessageRole, 
-        content: "I'm sorry, I encountered an error while processing your request. Please try again."
-      };
-      return newMessages;
-    });
-    
-    toast({
-      variant: "destructive",
-      title: "Communication Error",
-      description: "There was a problem connecting with Coach. Please try again."
-    });
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -338,108 +356,107 @@ const handleSendMessage = async () => {
     }
   };
 
-
-// In the saveWorkoutPlan function
-const saveWorkoutPlan = async () => {
-  if (!workoutPlan) return;
-  
-  setIsLoading(true);
-  try {
-    // Check if there are any workouts before saving
-    if (!workoutPlan.workouts || workoutPlan.workouts.length === 0) {
-      throw new Error('No workouts found in the plan');
-    }
+  // Save workout plan to the database
+  const saveWorkoutPlan = async () => {
+    if (!workoutPlan) return;
     
-    // Validate workouts before sending to API
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Set to beginning of day for comparison
-    
-    const totalWorkouts = workoutPlan.workouts.length;
-    const validWorkouts = workoutPlan.workouts.filter(workout => {
-      // Check for required fields
-      const hasRequiredFields = workout && 
-        workout.title && 
-        workout.date && 
-        workout.type;
+    setIsLoading(true);
+    try {
+      // Check if there are any workouts before saving
+      if (!workoutPlan.workouts || workoutPlan.workouts.length === 0) {
+        throw new Error('No workouts found in the plan');
+      }
       
-      if (!hasRequiredFields) return false;
+      // Validate workouts before sending to API
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Set to beginning of day for comparison
       
-      // Check for valid date (must be today or in the future)
-      const workoutDate = new Date(workout.date);
-      workoutDate.setHours(0, 0, 0, 0); // Set to beginning of day for comparison
-      const isValidDate = workoutDate >= today;
-      
-      if (!isValidDate) {
-        console.warn(`Skipping workout with past date: ${workout.date}`, workout);
+      const totalWorkouts = workoutPlan.workouts.length;
+      const validWorkouts = workoutPlan.workouts.filter(workout => {
+        // Check for required fields
+        const hasRequiredFields = workout && 
+          workout.title && 
+          workout.date && 
+          workout.type;
+        
+        if (!hasRequiredFields) return false;
+        
+        // Check for valid date (must be today or in the future)
+        const workoutDate = new Date(workout.date);
+        workoutDate.setHours(0, 0, 0, 0); // Set to beginning of day for comparison
+        const isValidDate = workoutDate >= today;
+        
+        if (!isValidDate) {
+          console.warn(`Skipping workout with past date: ${workout.date}`, workout);
+          return false;
+        }
+        
+        // Check type-specific required fields
+        if (workout.type === 'run') {
+          return !!workout.runType && workout.distance !== undefined;
+        } else if (workout.type === 'weightlifting') {
+          return !!workout.focusArea && !!workout.duration;
+        }
+        
         return false;
+      });
+      
+      if (validWorkouts.length === 0) {
+        throw new Error('No valid workouts found in the plan');
       }
       
-      // Check type-specific required fields
-      if (workout.type === 'run') {
-        return !!workout.runType && workout.distance !== undefined;
-      } else if (workout.type === 'weightlifting') {
-        return !!workout.focusArea && !!workout.duration;
+      if (validWorkouts.length < totalWorkouts) {
+        // Show warning but proceed with valid workouts
+        toast({
+          title: "Warning",
+          description: `Only ${validWorkouts.length} of ${totalWorkouts} workouts are valid and will be saved.`,
+          variant: "destructive",
+        });
+        
+        // Update the workout plan to only include valid workouts
+        setWorkoutPlan({
+          ...workoutPlan,
+          workouts: validWorkouts
+        });
       }
+
+      const response = await fetch('/api/coach/save-plan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          workoutPlan,
+          conversationId: null // Optional - if you want to associate with a conversation
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save workout plan');
+      }
+
+      const data = await response.json();
       
-      return false;
-    });
-    
-    if (validWorkouts.length === 0) {
-      throw new Error('No valid workouts found in the plan');
-    }
-    
-    if (validWorkouts.length < totalWorkouts) {
-      // Show warning but proceed with valid workouts
+      // Show success message
       toast({
-        title: "Warning",
-        description: `Only ${validWorkouts.length} of ${totalWorkouts} workouts are valid and will be saved.`,
-        variant: "destructive",
+        title: "Success!",
+        description: `Your plan "${workoutPlan.planName}" with ${data.savedWorkouts} workouts has been added to your calendar.`,
       });
       
-      // Update the workout plan to only include valid workouts
-      setWorkoutPlan({
-        ...workoutPlan,
-        workouts: validWorkouts
+      // Redirect to calendar view after successful save
+      router.push('/protected');
+    } catch (error: any) {
+      console.error('Error saving workout plan:', error);
+      toast({
+        variant: "destructive",
+        title: "Failed to save plan",
+        description: error.message || "There was a problem saving your workout plan. Please try again.",
       });
+    } finally {
+      setIsLoading(false);
     }
-
-    const response = await fetch('/api/coach/save-plan', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        workoutPlan,
-        conversationId: null // Optional - if you want to associate with a conversation
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to save workout plan');
-    }
-
-    const data = await response.json();
-    
-    // Show success message
-    toast({
-      title: "Success!",
-      description: `Your plan "${workoutPlan.planName}" with ${data.savedWorkouts} workouts has been added to your calendar.`,
-    });
-    
-    // Redirect to calendar view after successful save
-    router.push('/protected');
-  } catch (error: any) {
-    console.error('Error saving workout plan:', error);
-    toast({
-      variant: "destructive",
-      title: "Failed to save plan",
-      description: error.message || "There was a problem saving your workout plan. Please try again.",
-    });
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
 
   const resetConversation = () => {
     setMessages([]);
@@ -447,6 +464,39 @@ const saveWorkoutPlan = async () => {
     setConversationState('initial');
     setProgress(0);
     setCitations([]);
+    setSources([]);
+  };
+
+  // Component to display source information
+  const SourcesCard = ({ sources }: { sources: SourceInfo[] }) => {
+    if (!sources || sources.length === 0) return null;
+    
+    return (
+      <Card className="mb-4">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg">Scientific Sources</CardTitle>
+          <CardDescription>
+            Coach's advice is backed by these resources
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ul className="space-y-2 text-sm">
+            {sources.map((source, index) => (
+              <li key={index} className="flex items-start gap-2">
+                <BookOpen className="h-4 w-4 mt-0.5 text-primary flex-shrink-0" />
+                <div>
+                  <p className="font-medium">{source.title}</p>
+                  <p className="text-muted-foreground text-xs">
+                    {source.authors?.join(', ') || 'Unknown authors'} • 
+                    {Math.round(source.similarity * 100)}% relevance
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
+    );
   };
 
   const renderMessageWithCitations = (message: string, messageCitations: Citation[]) => {
@@ -582,6 +632,15 @@ const saveWorkoutPlan = async () => {
                         ? renderMessageWithCitations(message.content, citations)
                         : <p className="whitespace-pre-wrap">{message.content}</p>
                       }
+                      
+                      {message.role === 'assistant' && index === messages.length - 1 && (
+                        <ExtractPlanButton
+                          messageContent={message.content}
+                          setWorkoutPlan={setWorkoutPlan}
+                          setConversationState={setConversationState}
+                          setProgress={setProgress}
+                        />
+                      )}
                     </div>
                   </div>
                 ))}
@@ -694,6 +753,9 @@ const saveWorkoutPlan = async () => {
                 </CardFooter>
               </Card>
             )}
+            
+            {/* Sources Card */}
+            {sources.length > 0 && <SourcesCard sources={sources} />}
             
             {/* Information about document knowledge */}
             <Card>

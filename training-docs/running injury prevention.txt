@@ -1,0 +1,42 @@
+# Evidence-Based Injury Prevention for Runners
+
+Running injuries affect 19-79% of runners annually, with many of these injuries being preventable through proper training approaches. Understanding the risk factors and implementing evidence-based prevention strategies can help runners maintain consistency in their training.
+
+## Common Risk Factors
+
+Research has identified several factors that increase injury risk:
+
+1. Training errors: The most common cause of running injuries is training error, particularly sudden increases in volume or intensity. The "10% rule" (limiting weekly mileage increases to 10%) is often cited, though recent research suggests this may be too simplistic.
+
+2. Previous injury: A history of previous injury increases the risk of subsequent injuries, highlighting the importance of complete rehabilitation.
+
+3. Biomechanical factors: While certain biomechanical variables may predispose runners to specific injuries, the relationship is complex and highly individual.
+
+4. Surface and terrain: Consistently running on very hard or uneven surfaces may increase injury risk for some runners.
+
+5. Footwear: Running in worn-out shoes or inappropriate footwear for one's biomechanics can contribute to injury development.
+
+## Evidence-Based Prevention Strategies
+
+1. Progressive training: Implement a structured training program with gradual increases in volume and intensity. Research by Nielsen et al. (2012) found that novice runners who followed a gradual 10-week program had significantly fewer injuries than those who increased volume more rapidly.
+
+2. Strength training: Regular resistance training has been shown to reduce running injury rates by 50% in some studies. Focus on:
+   - Hip and gluteal strength
+   - Core stability
+   - Single-leg exercises
+   - Eccentric calf strengthening
+
+3. Cross-training: Incorporating non-impact activities reduces the cumulative load on the musculoskeletal system while maintaining cardiovascular fitness.
+
+4. Recovery: Adequate recovery between hard efforts is essential. This includes:
+   - Easy days between hard workouts
+   - Sufficient sleep (7-9 hours nightly)
+   - Proper nutrition and hydration
+
+5. Run-walk method: For beginners or those returning from injury, alternating running and walking reduces impact forces and improves tissue tolerance.
+
+6. Gait retraining: While wholesale changes to running form are not recommended for most runners, subtle modifications such as increasing cadence by 5-10% can reduce impact forces and injury risk.
+
+7. Appropriate footwear: Shoes should be replaced every 300-500 miles and should complement the runner's biomechanics and preferences.
+
+Research by van Mechelen (1992) and more recent studies confirm that multi-component prevention programs addressing multiple risk factors simultaneously are most effective at reducing injury rates among runners.

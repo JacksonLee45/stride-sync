@@ -1,4 +1,4 @@
-// app/api/coach/route.ts - Implemented with Claude Web API and Knowledge Retrieval
+// app/api/coach/route.ts - Updated with RAG integration
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 
@@ -17,8 +17,7 @@ function cleanJsonString(jsonString: string): string {
   return cleaned;
 }
 
-// Base system prompt - now we don't need to include document content
-// Base system prompt with improved date security
+// Base system prompt - now we include instructions for using references
 const BASE_SYSTEM_PROMPT = `You are Coach Claude, an expert running coach with deep knowledge of exercise physiology, training methodology, and race preparation.
 
 Your goal is to create personalized training plans for runners. Follow this approach:
@@ -42,6 +41,11 @@ Your goal is to create personalized training plans for runners. Follow this appr
    - Be conversational but focused on creating an effective plan
    - When you have enough information, generate a training plan
    - Explain the purpose of different workouts in the plan
+
+4. CITATION:
+   - When providing advice based on scientific research, cite the specific source
+   - Format citations as [Author, Title] or [Source]
+   - Use retrieved documents to provide evidence-based advice
 
 When creating a training plan, use these established principles:
 - Progressive overload
@@ -110,7 +114,34 @@ Ensure the workouts follow these principles:
 For run workouts, include details like distance, pace guidance, and purpose.
 For strength workouts, include the focus area and duration.
 
-Start the conversation by asking about their running goals. During the conversation, be friendly, encouraging, and demonstrate your expertise as a running coach.`
+Start the conversation by asking about their running goals. During the conversation, be friendly, encouraging, and demonstrate your expertise as a running coach.`;
+
+// Function to generate embeddings
+async function generateEmbedding(text: string) {
+  try {
+    const response = await fetch('https://api.openai.com/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        input: text,
+        model: "text-embedding-ada-002"
+      })
+    });
+
+    const result = await response.json();
+    if (result.error) {
+      console.error('Error from OpenAI:', result.error);
+      throw new Error(result.error.message);
+    }
+    return result.data[0].embedding;
+  } catch (error) {
+    console.error('Error generating embedding:', error);
+    throw error;
+  }
+}
 
 // Function to analyze conversation and update user profile
 async function updateUserTrainingProfile(userId: string, messages: any[]) {
@@ -211,7 +242,35 @@ async function saveConversation(userId: string, messages: any[], workoutPlan: an
   }
 }
 
-// app/api/coach/route.ts - Updated for streaming
+// Function to fetch relevant documents from vector database
+async function fetchRelevantDocuments(query: string, supabase: any) {
+  try {
+    // Generate embedding for the query
+    const queryEmbedding = await generateEmbedding(query);
+    
+    // Search for similar documents in Supabase
+    const { data: documents, error } = await supabase.rpc(
+      'match_documents',
+      {
+        query_embedding: queryEmbedding,
+        match_threshold: 0.65,
+        match_count: 3
+      }
+    );
+    
+    if (error) {
+      console.error('Error searching for relevant documents:', error);
+      return [];
+    }
+    
+    return documents || [];
+  } catch (error) {
+    console.error('Error fetching relevant documents:', error);
+    return [];
+  }
+}
+
+// app/api/coach/route.ts - Updated for streaming with RAG
 export async function POST(request: Request) {
   const supabase = await createClient();
   
@@ -220,6 +279,36 @@ export async function POST(request: Request) {
   if (userError || !user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   
   const { messages } = await request.json();
+  
+  // Extract the latest user message for RAG retrieval
+  const lastUserMessage = messages
+    .filter((m: any) => m.role === 'user')
+    .slice(-1)[0]?.content || '';
+  
+  // Fetch relevant documents
+  const relevantDocuments = await fetchRelevantDocuments(lastUserMessage, supabase);
+  
+  // Format documents as context
+  const contextText = relevantDocuments.length > 0 
+    ? relevantDocuments.map((doc: any) => 
+        `SOURCE: ${doc.title}
+          CONTENT: ${doc.content}
+          SOURCE_TYPE: ${doc.document_type || 'research'}
+          CITATION: [${doc.authors?.join(', ') || 'Unknown'}, ${doc.title}]
+          SIMILARITY: ${Math.round(doc.similarity * 100)}%
+
+`)
+    .join('\n')
+    : 'No specific resources available for this query.';
+  
+  // Prepare system prompt with context
+  const systemPromptWithContext = `${BASE_SYSTEM_PROMPT}
+
+REFERENCE DOCUMENTS (Use these to provide scientific backing to your advice):
+${contextText}
+
+When using information from these documents, cite them using the provided CITATION format.
+`;
   
   // Create a streaming response
   const encoder = new TextEncoder();
@@ -237,7 +326,7 @@ export async function POST(request: Request) {
           body: JSON.stringify({
             model: "claude-3-opus-20240229",
             max_tokens: 4000,
-            system: BASE_SYSTEM_PROMPT,
+            system: systemPromptWithContext,
             messages: messages,
             stream: true
           })
@@ -294,7 +383,12 @@ export async function POST(request: Request) {
                         type: 'complete', 
                         workoutPlan: workoutPlan,
                         planFound: planFound,
-                        citations: data.message?.citations || []
+                        citations: data.message?.citations || [],
+                        sources: relevantDocuments.map((doc: any) => ({
+                          title: doc.title,
+                          authors: doc.authors,
+                          similarity: doc.similarity
+                        }))
                       }) + '\n'));
                     } catch (error) {
                       console.error('Error parsing workout plan JSON:', error);
@@ -304,7 +398,12 @@ export async function POST(request: Request) {
                         parseError: true,
                         errorDetails: error instanceof Error ? error.message : 'Unknown JSON parsing error',
                         rawJsonString: jsonMatch[1], // Send the raw JSON string for client-side handling
-                        citations: data.message?.citations || []
+                        citations: data.message?.citations || [],
+                        sources: relevantDocuments.map((doc: any) => ({
+                          title: doc.title,
+                          authors: doc.authors,
+                          similarity: doc.similarity
+                        }))
                       }) + '\n'));
                     }
                   } else {
@@ -312,7 +411,12 @@ export async function POST(request: Request) {
                     controller.enqueue(encoder.encode(JSON.stringify({ 
                       type: 'complete', 
                       planFound: false,
-                      citations: data.message?.citations || []
+                      citations: data.message?.citations || [],
+                      sources: relevantDocuments.map((doc: any) => ({
+                        title: doc.title,
+                        authors: doc.authors,
+                        similarity: doc.similarity
+                      }))
                     }) + '\n'));
                   }
                 }
