@@ -1,0 +1,43 @@
+# Periodization in Running Training
+
+Periodization is a systematic approach to training that involves planned variations in training specificity, intensity, and volume to optimize performance for specific competitions. This methodical structure helps runners avoid plateaus, reduce injury risk, and achieve peak performance at the right time.
+
+The traditional model of periodization for runners includes several distinct phases:
+
+## Base Phase (General Preparation)
+The foundation of any running program, focusing on building aerobic capacity and general strength. Key characteristics include:
+- High volume, low intensity (primarily easy runs)
+- Progressive increase in weekly mileage
+- General strength training and mobility work
+- Duration typically 8-12 weeks
+
+## Build Phase (Specific Preparation)
+Transitions to more race-specific training while maintaining aerobic development:
+- Introduction of workout-specific training (tempo runs, threshold work)
+- Continued but stabilized mileage
+- More specific strength training
+- Duration typically 4-8 weeks
+
+## Peak Phase (Competition Phase)
+Focuses on race-specific preparation with reduced volume and increased quality:
+- Race-pace workouts
+- Reduced overall volume
+- Sharpening workouts (shorter, higher intensity intervals)
+- Duration typically 2-4 weeks
+
+## Taper
+Reduction in training load to maximize recovery while maintaining fitness:
+- Significant reduction in volume (typically 40-60%)
+- Maintained or slightly reduced intensity
+- Increased rest
+- Duration typically 1-3 weeks depending on race distance
+
+## Recovery/Transition
+Active recovery period between training cycles:
+- Very low structure and intensity
+- Focus on recovery and enjoyment
+- Duration typically 1-2 weeks
+
+Research has consistently shown that periodized training produces superior results compared to non-periodized approaches. A study by Esteve-Lanao et al. (2007) found that runners following a periodized program improved their 10k race times significantly more than those following a non-periodized program.
+
+For recreational runners, simplifying this approach while maintaining the core principles is recommended. Even a basic three-phase plan (base, build, peak) can dramatically improve performance compared to unstructured training.
