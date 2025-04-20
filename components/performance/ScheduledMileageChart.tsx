@@ -1,4 +1,4 @@
-// components/performance/CompletedMileageChart.tsx
+// components/performance/ScheduledMileageChart.tsx
 import React from 'react';
 import {
   AreaChart, Area,
@@ -19,7 +19,7 @@ interface ChartData {
   type: 'past' | 'future';
 }
 
-interface CompletedMileageChartProps {
+interface ScheduledMileageChartProps {
   data: ChartData[];
   isLoading: boolean;
   showTooltip?: boolean;
@@ -31,8 +31,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     return (
       <div className="bg-popover p-3 border rounded-md shadow-md">
         <p className="font-medium">{label}</p>
-        <p className="text-sm text-primary" style={{ color: 'hsl(var(--primary))' }}>
-          Completed: {payload[0].value.toFixed(2)} miles
+        <p className="text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
+          Planned: {payload[0].value.toFixed(2)} miles
         </p>
       </div>
     );
@@ -40,11 +40,11 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-const CompletedMileageChart: React.FC<CompletedMileageChartProps> = ({ 
+const ScheduledMileageChart: React.FC<ScheduledMileageChartProps> = ({ 
   data, 
   isLoading,
   showTooltip = false,
-  showAxis = false
+  showAxis = false 
 }) => {
   // Format date as "MMM DD" (e.g., "Jan 01")
   const formatXAxis = (dateStr: string) => {
@@ -85,19 +85,19 @@ const CompletedMileageChart: React.FC<CompletedMileageChartProps> = ({
             {showTooltip && <Tooltip content={<CustomTooltip />} />}
             
             <defs>
-              <linearGradient id="colorCompleted" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.8}/>
-                <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.2}/>
+              <linearGradient id="colorPlanned" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="hsl(var(--muted-foreground))" stopOpacity={0.8}/>
+                <stop offset="95%" stopColor="hsl(var(--muted-foreground))" stopOpacity={0.2}/>
               </linearGradient>
             </defs>
             
             <Area
               type="monotone"
-              dataKey="actualMileage"
-              stroke="hsl(var(--primary))"
+              dataKey="plannedMileage"
+              stroke="hsl(var(--muted-foreground))"
               strokeWidth={2}
-              fill="url(#colorCompleted)"
-              name="Completed Mileage"
+              fill="url(#colorPlanned)"
+              name="Planned Mileage"
             />
             
             {/* Display a reference line for today */}
@@ -126,4 +126,4 @@ const CompletedMileageChart: React.FC<CompletedMileageChartProps> = ({
   );
 };
 
-export default CompletedMileageChart;
+export default ScheduledMileageChart;

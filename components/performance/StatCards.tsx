@@ -26,9 +26,17 @@ interface StatsData {
   streakDays: number;
 }
 
+interface WorkoutTrends {
+  mileageTrend: number;
+  completionTrend: number;
+  workoutTrend: number;
+  paceTrend: number;
+}
+
 interface StatCardsProps {
   isLoading: boolean;
   stats: StatsData;
+  trends?: WorkoutTrends;
 }
 
 const StatCard = ({ 
@@ -85,13 +93,20 @@ const StatCard = ({
   </Card>
 );
 
-const StatCards: React.FC<StatCardsProps> = ({ isLoading, stats }) => {
-  // Calculate trends (would be based on previous period data in a real app)
-  // Here we're using dummy data for illustration
-  const mileageTrend = { value: 12, label: 'vs prev. period' };
-  const completionTrend = { value: 4, label: 'vs prev. period' };
-  const workoutTrend = { value: -2, label: 'vs prev. period' };
-  const paceTrend = { value: 3, label: 'improvement' };
+const StatCards: React.FC<StatCardsProps> = ({ isLoading, stats, trends }) => {
+  // Use the provided trends data or fallback to zero values
+  const trendData = trends || {
+    mileageTrend: 0,
+    completionTrend: 0,
+    workoutTrend: 0,
+    paceTrend: 0
+  };
+
+  // Format the trend data for display
+  const mileageTrend = { value: trendData.mileageTrend, label: 'vs prev. period' };
+  const completionTrend = { value: trendData.completionTrend, label: 'vs prev. period' };
+  const workoutTrend = { value: trendData.workoutTrend, label: 'vs prev. period' };
+  const paceTrend = { value: trendData.paceTrend, label: 'improvement' };
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
