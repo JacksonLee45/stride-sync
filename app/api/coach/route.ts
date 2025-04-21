@@ -324,7 +324,7 @@ When using information from these documents, cite them using the provided CITATI
             'anthropic-version': '2023-06-01'
           },
           body: JSON.stringify({
-            model: "claude-3-opus-20240229",
+            model: "claude-3-7-sonnet-20250219",
             max_tokens: 4000,
             system: systemPromptWithContext,
             messages: messages,
